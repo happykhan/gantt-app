@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { BrowserRouter } from 'react-router-dom'
-import { NavBar, AppFooter } from '@genomicx/ui'
+import { NavBar } from '@genomicx/ui'
 import { toPng } from 'html-to-image'
 import InputPanel from './components/InputPanel'
 import GanttChart from './components/GanttChart'
@@ -14,7 +14,12 @@ function GanttPage({ tasks, setTasks, onReset }) {
   const [selectedId, setSelectedId] = useState(null)
   const [showDeps, setShowDeps] = useState(null)
   const [zoom, setZoom] = useState(1)
+  const [categoryColors, setCategoryColors] = useState({})
   const ganttAreaRef = useRef()
+
+  function handleColorChange(cat, color) {
+    setCategoryColors(prev => ({ ...prev, [cat]: color }))
+  }
 
   const ZOOM_STEP = 0.25
   const ZOOM_MIN = 0.5
@@ -283,6 +288,8 @@ function GanttPage({ tasks, setTasks, onReset }) {
               onTaskChange={handleTaskChange}
               onTaskClick={(id) => { setSelectedId(id); setShowDeps(null) }}
               selectedId={selectedId}
+              categoryColors={categoryColors}
+              onColorChange={handleColorChange}
             />
           </div>
         </div>
@@ -337,7 +344,24 @@ function App() {
           )}
         </div>
 
-        <AppFooter appName="Gantt Builder" />
+        <footer style={{
+          borderTop: '1px solid var(--gx-border)',
+          padding: '10px 20px',
+          fontSize: 12,
+          color: 'var(--gx-text-muted)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 8,
+          background: 'var(--gx-surface)',
+        }}>
+          <span>Gantt Builder — all processing runs locally in your browser</span>
+          <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer"
+            style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>
+            GitHub
+          </a>
+        </footer>
       </div>
     </BrowserRouter>
   )
