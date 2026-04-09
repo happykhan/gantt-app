@@ -39,8 +39,15 @@ function Field({ value, onChange, type = 'text', placeholder = '', min, list, st
 
 function TaskRow({ task, categories, onUpdate, onDelete }) {
   const [expanded, setExpanded] = useState(false)
+  // Local name state — only pushed to chart on blur to avoid per-keystroke SVG re-renders
+  const [localName, setLocalName] = useState(task.name)
   const catIdx = categories.indexOf(task.category)
   const catColor = catIdx >= 0 ? CAT_COLORS[catIdx % CAT_COLORS.length] : '#94a3b8'
+
+  // Keep local name in sync if parent updates it externally (e.g. load project)
+  if (task.name !== localName && document.activeElement?.dataset?.taskId !== task.id) {
+    setLocalName(task.name)
+  }
 
   function set(field, value) { onUpdate(task.id, { [field]: value }) }
 
@@ -50,11 +57,21 @@ function TaskRow({ task, categories, onUpdate, onDelete }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: catColor, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Field
-            value={task.name}
-            onChange={v => set('name', v)}
+          {/* Name uses local state; chart only updates on blur */}
+          <input
+            type="text"
+            value={localName}
+            data-task-id={task.id}
             placeholder="Task name"
-            style={{ fontWeight: 500 }}
+            onChange={e => setLocalName(e.target.value)}
+            onBlur={() => set('name', localName)}
+            style={{
+              ...inputStyle,
+              fontWeight: 500,
+              border: '1px solid transparent',
+              background: 'transparent',
+            }}
+            onFocus={e => { e.target.style.border = '1px solid var(--gx-accent)'; e.target.style.background = 'var(--gx-surface)' }}
           />
         </div>
         {/* Expand toggle */}
@@ -109,12 +126,14 @@ function TaskRow({ task, categories, onUpdate, onDelete }) {
                 position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)',
                 width: 8, height: 8, borderRadius: 2, background: catColor, pointerEvents: 'none',
               }} />
-              <Field
-                value={task.category}
-                onChange={v => set('category', v)}
+              <input
+                type="text"
+                defaultValue={task.category}
                 placeholder="WP1…"
                 list={`cats-${task.id}`}
-                style={{ paddingLeft: 20 }}
+                onBlur={e => set('category', e.target.value)}
+                style={{ ...inputStyle, paddingLeft: 20, border: '1px solid transparent', background: 'transparent' }}
+                onFocus={e => { e.target.style.border = '1px solid var(--gx-accent)'; e.target.style.background = 'var(--gx-surface)' }}
               />
               <datalist id={`cats-${task.id}`}>
                 {categories.map(c => <option key={c} value={c} />)}
