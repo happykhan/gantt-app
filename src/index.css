@@ -26,6 +26,18 @@
 .gantt .bar-wrapper.bar-cat-8 .bar { fill: #f97316; }
 .gantt .bar-wrapper.bar-cat-9 .bar { fill: #84cc16; }
 
+/* Label contrast: white on dark bars, dark on light bars */
+.gantt .bar-wrapper.bar-cat-0 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-1 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-2 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-3 .bar-label { fill: #1a1a1a; }
+.gantt .bar-wrapper.bar-cat-4 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-5 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-6 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-7 .bar-label { fill: #fff; }
+.gantt .bar-wrapper.bar-cat-8 .bar-label { fill: #1a1a1a; }
+.gantt .bar-wrapper.bar-cat-9 .bar-label { fill: #1a1a1a; }
+
 .gantt .bar-wrapper.bar-cat-0 .bar-progress { fill: #4338ca; }
 .gantt .bar-wrapper.bar-cat-1 .bar-progress { fill: #0f766e; }
 .gantt .bar-wrapper.bar-cat-2 .bar-progress { fill: #059669; }
