@@ -3,8 +3,9 @@ import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
 import { toPng } from 'html-to-image'
 import InputPanel from './components/InputPanel'
-import GanttChart from './components/GanttChart'
+import CustomGantt from './components/CustomGantt'
 import TaskEditor from './components/TaskEditor'
+import BottomSheet from './components/BottomSheet'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
@@ -15,23 +16,18 @@ function GanttPage({ tasks, setTasks, onReset }) {
   const [showDeps, setShowDeps] = useState(null)
   const [zoom, setZoom] = useState(1)
   const [categoryColors, setCategoryColors] = useState({})
+  const [showSidebar, setShowSidebar] = useState(false) // mobile sidebar toggle
   const ganttAreaRef = useRef()
-
-  function handleColorChange(cat, color) {
-    setCategoryColors(prev => ({ ...prev, [cat]: color }))
-  }
-
-  const ZOOM_STEP = 0.25
-  const ZOOM_MIN = 0.5
-  const ZOOM_MAX = 2
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
 
+  function handleColorChange(cat, color) {
+    setCategoryColors(prev => ({ ...prev, [cat]: color }))
+  }
   function handleTaskChange(id, changes) {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
   }
-
   function handleDelete(id) {
     setTasks(prev => {
       const next = prev.filter(t => t.id !== id)
@@ -44,11 +40,18 @@ function GanttPage({ tasks, setTasks, onReset }) {
     })
     if (selectedId === id) setSelectedId(null)
   }
-
   function handleAdd(taskData) {
-    setTasks(prev => [...prev, { ...taskData, id: makeId() }])
+    const newTask = { ...taskData, id: makeId() }
+    setTasks(prev => [...prev, newTask])
   }
-
+  function handleAddNew() {
+    const last = tasks[tasks.length - 1]
+    const start = last?.end || new Date().toISOString().substring(0, 10)
+    const end = new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
+    const newTask = { id: makeId(), name: 'New task', start, end, category: last?.category || '', dependencies: '', progress: 0 }
+    setTasks(prev => [...prev, newTask])
+    setSelectedId(newTask.id)
+  }
   function toggleDep(taskId, depId) {
     setTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t
@@ -59,26 +62,6 @@ function GanttPage({ tasks, setTasks, onReset }) {
     }))
   }
 
-  function exportSVG() {
-    const svg = ganttAreaRef.current?.querySelector('svg')
-    if (!svg) return
-    const clone = svg.cloneNode(true)
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-    const style = document.createElement('style')
-    style.textContent = Array.from(document.styleSheets)
-      .flatMap(s => { try { return Array.from(s.cssRules) } catch { return [] } })
-      .filter(r => r.cssText?.includes('bar-cat') || r.cssText?.includes('.gantt'))
-      .map(r => r.cssText)
-      .join('\n')
-    clone.insertBefore(style, clone.firstChild)
-    const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'gantt.svg'
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
   function saveProject() {
     const blob = new Blob([JSON.stringify({ tasks }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -87,182 +70,78 @@ function GanttPage({ tasks, setTasks, onReset }) {
     a.click()
     URL.revokeObjectURL(a.href)
   }
-
   function loadProject(file) {
     if (!file) return
     const reader = new FileReader()
     reader.onload = e => {
       try {
         const { tasks: loaded } = JSON.parse(e.target.result)
-        if (Array.isArray(loaded) && loaded.length) {
-          setTasks(loaded)
-        }
-      } catch { /* ignore bad files */ }
+        if (Array.isArray(loaded) && loaded.length) setTasks(loaded)
+      } catch { /* ignore */ }
     }
     reader.readAsText(file)
   }
-
   async function exportPNG() {
     const el = ganttAreaRef.current
     if (!el) return
     try {
-      const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
-      const a = document.createElement('a')
-      a.href = dataUrl
-      a.download = 'gantt.png'
-      a.click()
-    } catch (e) {
-      console.error('PNG export failed', e)
-    }
+      const url = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
+      const a = document.createElement('a'); a.href = url; a.download = 'gantt.png'; a.click()
+    } catch (e) { console.error(e) }
   }
 
+  const ZOOM_STEP = 0.25, ZOOM_MIN = 0.5, ZOOM_MAX = 2
+
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: 'var(--layout-dir, row)' }}
-      className="gantt-root">
-      <style>{`@media (max-width: 700px) { .gantt-root { --layout-dir: column; } .gantt-aside { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--gx-border) !important; max-height: 280px; } }`}</style>
-      {/* Left sidebar: task table */}
-      <aside className="gantt-aside" style={{
-        width: 320,
-        borderRight: '1px solid var(--gx-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--gx-surface)',
-        overflowY: 'auto',
-        flexShrink: 0,
-      }}>
-        {/* Controls */}
-        <div style={{
-          display: 'flex',
-          gap: 6,
-          padding: '8px 10px',
-          borderBottom: '1px solid var(--gx-border)',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}>
-          {['Week','Month','Quarter Year','Year'].map(m => (
-            <button
-              key={m}
-              onClick={() => setViewMode(m)}
-              className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-              style={{ fontSize: 12, padding: '3px 10px' }}
-            >
-              {m === 'Quarter Year' ? 'Quarter' : m}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          {/* Zoom */}
-          <button
-            onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
-            disabled={zoom <= ZOOM_MIN}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}
-            title="Zoom out"
-          >−</button>
-          <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }}>
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))}
-            disabled={zoom >= ZOOM_MAX}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}
-            title="Zoom in"
-          >+</button>
-          <span style={{ width: 4 }} />
-          <button
-            onClick={saveProject}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 12, padding: '3px 10px' }}
-            title="Save project as JSON"
-          >
-            Save
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+        {/* View modes */}
+        {['Week','Month','Quarter','Year'].map(m => (
+          <button key={m} onClick={() => setViewMode(m)}
+            className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
+            style={{ fontSize: 12, padding: '3px 8px' }}>
+            {m}
           </button>
-          <label
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 12, padding: '3px 10px', cursor: 'pointer', margin: 0 }}
-            title="Load a saved JSON project"
-          >
-            Load
-            <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
-          </label>
-          <button
-            onClick={exportPNG}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 12, padding: '3px 10px' }}
-          >
-            PNG
-          </button>
-          <button
-            onClick={exportSVG}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 12, padding: '3px 10px' }}
-          >
-            SVG
-          </button>
-          <button
-            onClick={onReset}
-            className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 12, padding: '3px 10px' }}
-            title="Load new data"
-          >
-            ← New
-          </button>
-        </div>
+        ))}
+        <span style={{ width: 4 }} />
+        {/* Zoom */}
+        <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
+          className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
+        <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
+          className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
+        <div style={{ flex: 1 }} />
+        {/* Task list toggle (mobile) */}
+        <button onClick={() => setShowSidebar(s => !s)}
+          className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
+          title="Show/hide task list">
+          ☰ Tasks
+        </button>
+        <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Save</button>
+        <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
+          Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
+        </label>
+        <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
+        <button onClick={onReset} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>← New</button>
+      </div>
 
-        <TaskEditor
-          tasks={tasks}
-          categories={categories}
-          onUpdate={handleTaskChange}
-          onDelete={handleDelete}
-          onAdd={handleAdd}
-          selectedId={selectedId}
-        />
-      </aside>
-
-      {/* Right: gantt chart */}
-      <main style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {/* Dependency editor (shown when task selected) */}
-        {selectedTask && (
-          <div style={{
-            marginBottom: 12,
-            padding: 12,
-            background: 'var(--gx-accent-dim)',
-            border: '1px solid var(--gx-border)',
-            borderRadius: 'var(--gx-radius)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 11, color: 'var(--gx-accent)', fontWeight: 600, marginBottom: 2 }}>Selected</p>
-                <p style={{ fontWeight: 600, color: 'var(--gx-text)' }}>{selectedTask.name}</p>
-              </div>
-              <button
-                onClick={() => setShowDeps(showDeps === selectedTask.id ? null : selectedTask.id)}
-                className="gx-btn gx-btn-secondary"
-                style={{ fontSize: 12 }}
-              >
-                {showDeps === selectedTask.id ? 'Hide' : 'Edit'} dependencies
-              </button>
-              <button onClick={() => { setSelectedId(null); setShowDeps(null) }} style={{ color: 'var(--gx-text-muted)', fontSize: 20, lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-            </div>
-
-            {showDeps === selectedTask.id && (
-              <div>
-                <p style={{ fontSize: 12, color: 'var(--gx-text-muted)', marginBottom: 8 }}>
-                  "{selectedTask.name}" starts after:
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {tasks.filter(t => t.id !== selectedTask.id).map(t => {
-                    const deps = selectedTask.dependencies
-                      ? selectedTask.dependencies.split(',').map(s => s.trim()).filter(Boolean)
-                      : []
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        {/* Task sidebar (collapsible on mobile) */}
+        {showSidebar && (
+          <aside style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--gx-border)', background: 'var(--gx-surface)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {/* Dependency editor */}
+            {selectedTask && (
+              <div style={{ padding: 10, borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-accent-dim)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-accent)', marginBottom: 4, textTransform: 'uppercase' }}>Dependencies for: {selectedTask.name}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {tasks.filter(t => t.id !== selectedId).map(t => {
+                    const deps = selectedTask.dependencies ? selectedTask.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []
                     const checked = deps.includes(t.id)
                     return (
-                      <button
-                        key={t.id}
-                        onClick={() => toggleDep(selectedTask.id, t.id)}
+                      <button key={t.id} onClick={() => toggleDep(selectedId, t.id)}
                         className={checked ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-                        style={{ fontSize: 12 }}
-                      >
+                        style={{ fontSize: 11 }}>
                         {checked ? '✓ ' : ''}{t.name}
                       </button>
                     )
@@ -270,47 +149,68 @@ function GanttPage({ tasks, setTasks, onReset }) {
                 </div>
               </div>
             )}
-          </div>
+            <TaskEditor tasks={tasks} categories={categories} onUpdate={handleTaskChange} onDelete={handleDelete} onAdd={handleAdd} />
+          </aside>
         )}
 
-        <div style={{ overflow: 'auto', width: '100%' }}>
-          <div
-            ref={ganttAreaRef}
-            style={{
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top left',
-              width: `${(100 / zoom).toFixed(1)}%`,
-            }}
-          >
-            <GanttChart
-              tasks={tasks}
-              viewMode={viewMode}
-              onTaskChange={handleTaskChange}
-              onTaskClick={(id) => { setSelectedId(id); setShowDeps(null) }}
-              selectedId={selectedId}
-              categoryColors={categoryColors}
-              onColorChange={handleColorChange}
-            />
+        {/* Gantt chart */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
+          <div ref={ganttAreaRef} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${(100/zoom).toFixed(1)}%`, height: `${(100/zoom).toFixed(1)}%` }}>
+              <CustomGantt
+                tasks={tasks}
+                viewMode={viewMode}
+                categoryColors={categoryColors}
+                onColorChange={handleColorChange}
+                onTaskChange={handleTaskChange}
+                onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
+              />
+            </div>
           </div>
-        </div>
-      </main>
+
+          {/* FAB: Add task */}
+          <button
+            onClick={handleAddNew}
+            style={{
+              position: 'absolute', bottom: 20, right: 20,
+              width: 52, height: 52, borderRadius: '50%',
+              background: 'var(--gx-accent)', color: '#fff',
+              border: 'none', fontSize: 26, lineHeight: 1,
+              cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 10,
+            }}
+            title="Add task"
+          >+</button>
+        </main>
+      </div>
+
+      {/* Bottom sheet (mobile task editor) */}
+      {selectedTask && (
+        <BottomSheet
+          task={selectedTask}
+          categories={categories}
+          onUpdate={handleTaskChange}
+          onDelete={handleDelete}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
     </div>
   )
 }
 
 function App() {
   const [tasks, setTasks] = useState([])
-  const [view, setView] = useState('input') // 'input' | 'gantt'
+  const [view, setView] = useState('input')
 
   function handleLoad(newTasks) {
-    const tasksWithIds = newTasks.map(t => ({ ...t, id: t.id || makeId() }))
-    setTasks(tasksWithIds)
+    setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
     setView('gantt')
   }
 
   return (
     <BrowserRouter>
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--gx-bg)' }}>
+      <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gx-bg)', overflow: 'hidden' }}>
         <NavBar
           appName="Gantt Builder"
           appSubtitle="Grant timeline maker"
@@ -330,37 +230,17 @@ function App() {
           }
         />
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {view === 'input' ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-              <InputPanel onLoad={handleLoad} />
-            </div>
-          ) : (
-            <GanttPage
-              tasks={tasks}
-              setTasks={setTasks}
-              onReset={() => { setView('input'); setTasks([]) }}
-            />
-          )}
-        </div>
+        {view === 'input' ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, overflow: 'auto' }}>
+            <InputPanel onLoad={handleLoad} />
+          </div>
+        ) : (
+          <GanttPage tasks={tasks} setTasks={setTasks} onReset={() => { setView('input'); setTasks([]) }} />
+        )}
 
-        <footer style={{
-          borderTop: '1px solid var(--gx-border)',
-          padding: '10px 20px',
-          fontSize: 12,
-          color: 'var(--gx-text-muted)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 8,
-          background: 'var(--gx-surface)',
-        }}>
-          <span>Gantt Builder — all processing runs locally in your browser</span>
-          <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer"
-            style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>
-            GitHub
-          </a>
+        <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '8px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
+          <span>Gantt Builder — runs locally in your browser</span>
+          <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>GitHub</a>
         </footer>
       </div>
     </BrowserRouter>
