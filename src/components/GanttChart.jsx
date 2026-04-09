@@ -56,6 +56,7 @@ export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick 
     ganttRef.current = new Gantt(containerRef.current, toGanttTasks(tasks), {
       view_modes: VIEW_MODES,
       view_mode: resolveMode(viewMode || 'Month'),
+      scroll_to: 'start',
       bar_height: 32,
       bar_corner_radius: 4,
       padding: 14,
