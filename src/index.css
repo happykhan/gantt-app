@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f8fafc;
+}
+
+/* Frappe Gantt overrides */
+.gantt-container {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.gantt .bar-wrapper:hover .bar { fill-opacity: 0.85; }
+.gantt .bar-label { font-size: 12px; font-weight: 500; }
+.gantt .grid-header { fill: #f1f5f9; }
+.gantt .grid-row:nth-child(even) { fill: #fafafa; }
+.gantt .lower-text, .gantt .upper-text { font-size: 12px; fill: #64748b; }
+.gantt .today-highlight { fill: #dbeafe; opacity: 0.5; }
+.gantt .handle { fill: #fff; stroke: #94a3b8; }
+
+/* Category colours */
+.bar-cat-0 .bar { fill: #6366f1; }
+.bar-cat-1 .bar { fill: #0ea5e9; }
+.bar-cat-2 .bar { fill: #10b981; }
+.bar-cat-3 .bar { fill: #f59e0b; }
+.bar-cat-4 .bar { fill: #ef4444; }
+.bar-cat-5 .bar { fill: #8b5cf6; }
+.bar-cat-6 .bar { fill: #ec4899; }
+.bar-cat-7 .bar { fill: #14b8a6; }
+.bar-cat-8 .bar { fill: #f97316; }
+.bar-cat-9 .bar { fill: #84cc16; }
+
+.bar-cat-0 .bar-progress { fill: #4338ca; }
+.bar-cat-1 .bar-progress { fill: #0284c7; }
+.bar-cat-2 .bar-progress { fill: #059669; }
+.bar-cat-3 .bar-progress { fill: #d97706; }
+.bar-cat-4 .bar-progress { fill: #dc2626; }
+.bar-cat-5 .bar-progress { fill: #7c3aed; }
+.bar-cat-6 .bar-progress { fill: #db2777; }
+.bar-cat-7 .bar-progress { fill: #0f766e; }
+.bar-cat-8 .bar-progress { fill: #ea580c; }
+.bar-cat-9 .bar-progress { fill: #65a30d; }
+
+.gantt-selected .bar { stroke: #1e293b; stroke-width: 2px; }
