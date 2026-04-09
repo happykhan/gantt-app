@@ -14,25 +14,25 @@
 .gantt .lower-text, .gantt .upper-text { font-size: 12px; fill: var(--gx-text-muted); }
 .gantt .today-highlight { fill: var(--gx-accent-dim); opacity: 0.7; }
 
-/* Category colours */
-.bar-cat-0 .bar { fill: #6366f1; }
-.bar-cat-1 .bar { fill: var(--gx-accent); }
-.bar-cat-2 .bar { fill: #10b981; }
-.bar-cat-3 .bar { fill: var(--gx-warning); }
-.bar-cat-4 .bar { fill: var(--gx-error); }
-.bar-cat-5 .bar { fill: #8b5cf6; }
-.bar-cat-6 .bar { fill: #ec4899; }
-.bar-cat-7 .bar { fill: #14b8a6; }
-.bar-cat-8 .bar { fill: #f97316; }
-.bar-cat-9 .bar { fill: #84cc16; }
+/* Category colours — needs 4-class specificity to beat .gantt .bar-wrapper .bar */
+.gantt .bar-wrapper.bar-cat-0 .bar { fill: #6366f1; }
+.gantt .bar-wrapper.bar-cat-1 .bar { fill: #0d9488; }
+.gantt .bar-wrapper.bar-cat-2 .bar { fill: #10b981; }
+.gantt .bar-wrapper.bar-cat-3 .bar { fill: #f59e0b; }
+.gantt .bar-wrapper.bar-cat-4 .bar { fill: #ef4444; }
+.gantt .bar-wrapper.bar-cat-5 .bar { fill: #8b5cf6; }
+.gantt .bar-wrapper.bar-cat-6 .bar { fill: #ec4899; }
+.gantt .bar-wrapper.bar-cat-7 .bar { fill: #14b8a6; }
+.gantt .bar-wrapper.bar-cat-8 .bar { fill: #f97316; }
+.gantt .bar-wrapper.bar-cat-9 .bar { fill: #84cc16; }
 
-.bar-cat-0 .bar-progress { fill: #4338ca; }
-.bar-cat-1 .bar-progress { fill: var(--gx-accent-hover); }
-.bar-cat-2 .bar-progress { fill: #059669; }
-.bar-cat-3 .bar-progress { fill: #d97706; }
-.bar-cat-4 .bar-progress { fill: #dc2626; }
-.bar-cat-5 .bar-progress { fill: #7c3aed; }
-.bar-cat-6 .bar-progress { fill: #db2777; }
-.bar-cat-7 .bar-progress { fill: #0f766e; }
-.bar-cat-8 .bar-progress { fill: #ea580c; }
-.bar-cat-9 .bar-progress { fill: #65a30d; }
+.gantt .bar-wrapper.bar-cat-0 .bar-progress { fill: #4338ca; }
+.gantt .bar-wrapper.bar-cat-1 .bar-progress { fill: #0f766e; }
+.gantt .bar-wrapper.bar-cat-2 .bar-progress { fill: #059669; }
+.gantt .bar-wrapper.bar-cat-3 .bar-progress { fill: #d97706; }
+.gantt .bar-wrapper.bar-cat-4 .bar-progress { fill: #dc2626; }
+.gantt .bar-wrapper.bar-cat-5 .bar-progress { fill: #7c3aed; }
+.gantt .bar-wrapper.bar-cat-6 .bar-progress { fill: #db2777; }
+.gantt .bar-wrapper.bar-cat-7 .bar-progress { fill: #0f766e; }
+.gantt .bar-wrapper.bar-cat-8 .bar-progress { fill: #ea580c; }
+.gantt .bar-wrapper.bar-cat-9 .bar-progress { fill: #65a30d; }
