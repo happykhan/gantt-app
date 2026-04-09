@@ -13,7 +13,12 @@ function GanttPage({ tasks, setTasks, onReset }) {
   const [viewMode, setViewMode] = useState('Month')
   const [selectedId, setSelectedId] = useState(null)
   const [showDeps, setShowDeps] = useState(null)
+  const [zoom, setZoom] = useState(1)
   const ganttAreaRef = useRef()
+
+  const ZOOM_STEP = 0.25
+  const ZOOM_MIN = 0.5
+  const ZOOM_MAX = 2
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
@@ -140,6 +145,25 @@ function GanttPage({ tasks, setTasks, onReset }) {
             </button>
           ))}
           <div style={{ flex: 1 }} />
+          {/* Zoom */}
+          <button
+            onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))}
+            disabled={zoom <= ZOOM_MIN}
+            className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}
+            title="Zoom out"
+          >−</button>
+          <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))}
+            disabled={zoom >= ZOOM_MAX}
+            className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}
+            title="Zoom in"
+          >+</button>
+          <span style={{ width: 4 }} />
           <button
             onClick={saveProject}
             className="gx-btn gx-btn-secondary"
@@ -244,14 +268,23 @@ function GanttPage({ tasks, setTasks, onReset }) {
           </div>
         )}
 
-        <div ref={ganttAreaRef}>
-          <GanttChart
-            tasks={tasks}
-            viewMode={viewMode}
-            onTaskChange={handleTaskChange}
-            onTaskClick={(id) => { setSelectedId(id); setShowDeps(null) }}
-            selectedId={selectedId}
-          />
+        <div style={{ overflow: 'auto', width: '100%' }}>
+          <div
+            ref={ganttAreaRef}
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top left',
+              width: `${(100 / zoom).toFixed(1)}%`,
+            }}
+          >
+            <GanttChart
+              tasks={tasks}
+              viewMode={viewMode}
+              onTaskChange={handleTaskChange}
+              onTaskClick={(id) => { setSelectedId(id); setShowDeps(null) }}
+              selectedId={selectedId}
+            />
+          </div>
         </div>
       </main>
     </div>
