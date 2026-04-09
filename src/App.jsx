@@ -91,14 +91,14 @@ function GanttPage({ tasks, setTasks, onReset }) {
           alignItems: 'center',
           flexWrap: 'wrap',
         }}>
-          {['Week','Month','Year'].map(m => (
+          {['Week','Month','Quarter Year','Year'].map(m => (
             <button
               key={m}
               onClick={() => setViewMode(m)}
               className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
               style={{ fontSize: 12, padding: '3px 10px' }}
             >
-              {m}
+              {m === 'Quarter Year' ? 'Quarter' : m}
             </button>
           ))}
           <div style={{ flex: 1 }} />
