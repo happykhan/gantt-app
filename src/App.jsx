@@ -69,6 +69,29 @@ function GanttPage({ tasks, setTasks, onReset }) {
     URL.revokeObjectURL(a.href)
   }
 
+  function saveProject() {
+    const blob = new Blob([JSON.stringify({ tasks }, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'gantt-project.json'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  function loadProject(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const { tasks: loaded } = JSON.parse(e.target.result)
+        if (Array.isArray(loaded) && loaded.length) {
+          setTasks(loaded)
+        }
+      } catch { /* ignore bad files */ }
+    }
+    reader.readAsText(file)
+  }
+
   async function exportPNG() {
     const el = ganttAreaRef.current
     if (!el) return
@@ -117,6 +140,22 @@ function GanttPage({ tasks, setTasks, onReset }) {
             </button>
           ))}
           <div style={{ flex: 1 }} />
+          <button
+            onClick={saveProject}
+            className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 12, padding: '3px 10px' }}
+            title="Save project as JSON"
+          >
+            Save
+          </button>
+          <label
+            className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 12, padding: '3px 10px', cursor: 'pointer', margin: 0 }}
+            title="Load a saved JSON project"
+          >
+            Load
+            <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
+          </label>
           <button
             onClick={exportPNG}
             className="gx-btn gx-btn-secondary"

@@ -20,6 +20,22 @@ export default function InputPanel({ onLoad }) {
     setFiles(newFiles)
     const file = newFiles[0]
     if (!file) return
+
+    // JSON project file
+    if (file.name.endsWith('.json')) {
+      const reader = new FileReader()
+      reader.onload = e => {
+        try {
+          const { tasks } = JSON.parse(e.target.result)
+          if (Array.isArray(tasks) && tasks.length) { onLoad(tasks); return }
+          setError('No tasks found in JSON file')
+        } catch { setError('Could not parse JSON file') }
+      }
+      reader.readAsText(file)
+      return
+    }
+
+    // Excel / CSV
     const reader = new FileReader()
     reader.onload = e => {
       try {
@@ -97,9 +113,9 @@ export default function InputPanel({ onLoad }) {
             files={files}
             onFilesChange={handleFilesChange}
             multiple={false}
-            accept=".xlsx,.xls,.csv"
-            label="Drop your Excel or CSV file here"
-            hint="Needs columns: Task Name, Start Date, End Date (column names are flexible)"
+            accept=".xlsx,.xls,.csv,.json"
+            label="Drop your Excel, CSV, or saved .json project here"
+            hint="Columns needed: Task Name, Start Date, End Date (names are flexible)"
           />
         </div>
       )}
