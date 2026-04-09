@@ -11,7 +11,7 @@ let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
 
 function GanttPage({ tasks, setTasks, onReset }) {
-  const [viewMode, setViewMode] = useState('Month')
+  const [viewMode, setViewMode] = useState('Quarter')
   const [selectedId, setSelectedId] = useState(null)
   const [showDeps, setShowDeps] = useState(null)
   const [zoom, setZoom] = useState(1)
