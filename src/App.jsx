@@ -214,6 +214,19 @@ function App() {
           appName="Gantt Builder"
           appSubtitle="Grant timeline maker"
           githubUrl="https://github.com/happykhan/gantt-app"
+          icon={
+            <svg viewBox="0 0 64 64" style={{ width: 32, height: 32 }}>
+              <rect width="64" height="64" rx="12" fill="#0f172a"/>
+              <line x1="20" y1="10" x2="20" y2="54" stroke="#fff" strokeOpacity="0.08" strokeWidth="1"/>
+              <line x1="36" y1="10" x2="36" y2="54" stroke="#fff" strokeOpacity="0.08" strokeWidth="1"/>
+              <line x1="52" y1="10" x2="52" y2="54" stroke="#fff" strokeOpacity="0.08" strokeWidth="1"/>
+              <rect x="12" y="13" width="26" height="7" rx="2" fill="#0d9488"/>
+              <rect x="20" y="24" width="32" height="7" rx="2" fill="#0d9488" opacity="0.7"/>
+              <rect x="30" y="35" width="22" height="7" rx="2" fill="#6366f1"/>
+              <rect x="38" y="46" width="14" height="7" rx="2" fill="#f59e0b"/>
+              <line x1="36" y1="10" x2="36" y2="54" stroke="#2dd4bf" strokeWidth="1.5" strokeOpacity="0.6" strokeDasharray="3 2"/>
+            </svg>
+          }
         />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
