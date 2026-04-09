@@ -4,16 +4,27 @@ import '../frappe-gantt.css'
 
 const CAT_COLORS = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
 
-function getCategoryIndex(task, categories) {
-  if (!task.category) return -1
-  return categories.indexOf(task.category)
+// Custom Quarter view mode (not built into frappe-gantt)
+const QUARTER_MODE = {
+  name: 'Quarter',
+  padding: '3m',
+  step: '3m',
+  column_width: 120,
+  date_format: 'YYYY-MM',
+  lower_text: (d) => `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`,
+  upper_text: (d, ld) =>
+    !ld || d.getFullYear() !== ld.getFullYear() ? String(d.getFullYear()) : '',
+  thick_line: (d) => d.getMonth() === 0,
+  snap_at: '7d',
 }
 
-export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick, selectedId }) {
+// Built-in modes we expose
+const VIEW_MODES = ['Week', 'Month', QUARTER_MODE, 'Year']
+
+export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick }) {
   const containerRef = useRef(null)
   const ganttRef = useRef(null)
 
-  // Collect unique categories (stable order)
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
 
   const toGanttTasks = useCallback((taskList) => {
@@ -32,17 +43,19 @@ export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick,
     })
   }, [])
 
-  // Init on first render
+  function resolveMode(name) {
+    if (name === 'Quarter') return QUARTER_MODE
+    return name
+  }
+
+  // Init on first render / when task structure changes
   useEffect(() => {
     if (!containerRef.current || !tasks.length) return
-
-    // Clear previous instance
     containerRef.current.innerHTML = ''
 
-    const ganttTasks = toGanttTasks(tasks)
-
-    ganttRef.current = new Gantt(containerRef.current, ganttTasks, {
-      view_mode: viewMode || 'Week',
+    ganttRef.current = new Gantt(containerRef.current, toGanttTasks(tasks), {
+      view_modes: VIEW_MODES,
+      view_mode: resolveMode(viewMode || 'Month'),
       bar_height: 32,
       bar_corner_radius: 4,
       padding: 14,
@@ -60,43 +73,35 @@ export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick,
       },
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks.length > 0 ? tasks[0].id : null]) // only reinit when task set changes structurally
+  }, [tasks.length > 0 ? tasks[0].id : null])
 
-  // Refresh when task data changes
+  // Refresh data
   useEffect(() => {
     if (!ganttRef.current || !tasks.length) return
-    try {
-      ganttRef.current.refresh(toGanttTasks(tasks))
-    } catch {
-      // ignore refresh errors — will reinit on next mount
-    }
+    try { ganttRef.current.refresh(toGanttTasks(tasks)) } catch { /* ignore */ }
   }, [tasks, toGanttTasks])
 
   // Change view mode
   useEffect(() => {
     if (!ganttRef.current || !viewMode) return
-    ganttRef.current.change_view_mode(viewMode)
+    try { ganttRef.current.change_view_mode(resolveMode(viewMode)) } catch { /* ignore */ }
   }, [viewMode])
 
   if (!tasks.length) return null
 
   return (
     <div>
-      {/* Category legend */}
       {categories.length > 0 && (
-        <div className="flex flex-wrap gap-3 mb-3">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
           {categories.map((cat, i) => (
-            <span key={cat} className="flex items-center gap-1.5 text-sm text-gray-600">
-              <span
-                className="inline-block w-3 h-3 rounded-sm"
-                style={{ background: CAT_COLORS[i % CAT_COLORS.length] }}
-              />
+            <span key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--gx-text-muted)' }}>
+              <span style={{ width: 12, height: 12, borderRadius: 3, background: CAT_COLORS[i % CAT_COLORS.length], display: 'inline-block' }} />
               {cat}
             </span>
           ))}
         </div>
       )}
-      <div ref={containerRef} className="gantt-container w-full" />
+      <div ref={containerRef} className="gantt-container" style={{ width: '100%' }} />
     </div>
   )
 }
