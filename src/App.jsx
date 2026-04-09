@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import { NavBar, AppFooter } from '@genomicx/ui'
+import { toPng } from 'html-to-image'
 import InputPanel from './components/InputPanel'
 import GanttChart from './components/GanttChart'
 import TaskEditor from './components/TaskEditor'
@@ -68,6 +69,20 @@ function GanttPage({ tasks, setTasks, onReset }) {
     URL.revokeObjectURL(a.href)
   }
 
+  async function exportPNG() {
+    const el = ganttAreaRef.current
+    if (!el) return
+    try {
+      const dataUrl = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = 'gantt.png'
+      a.click()
+    } catch (e) {
+      console.error('PNG export failed', e)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: 'var(--layout-dir, row)' }}
       className="gantt-root">
@@ -103,11 +118,18 @@ function GanttPage({ tasks, setTasks, onReset }) {
           ))}
           <div style={{ flex: 1 }} />
           <button
+            onClick={exportPNG}
+            className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 12, padding: '3px 10px' }}
+          >
+            PNG
+          </button>
+          <button
             onClick={exportSVG}
             className="gx-btn gx-btn-secondary"
             style={{ fontSize: 12, padding: '3px 10px' }}
           >
-            Export SVG
+            SVG
           </button>
           <button
             onClick={onReset}
