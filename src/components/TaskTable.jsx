@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
-const DEFAULT_COL_WIDTHS = { name: 160, start: 110, end: 110, dur: 52, category: 110, progress: 52, deps: 130 }
+const DEFAULT_COL_WIDTHS = { name: 160, start: 82, end: 82, dur: 52, category: 110, progress: 52, deps: 130 }
 
 function loadColWidths() {
   try {
@@ -63,6 +63,38 @@ function duration(start, end) {
   if (days < 30) return `${days}d`
   const months = Math.round(days / 30.4)
   return `${months}mo`
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function fmtDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]} '${y.slice(2)}`
+}
+
+function DateCell({ value, min, onChange }) {
+  const [editing, setEditing] = useState(false)
+  const [local, setLocal] = useState(value)
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="date"
+        value={local}
+        min={min}
+        onChange={e => setLocal(e.target.value)}
+        onBlur={() => { setEditing(false); if (local !== value) onChange(local) }}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
+        style={{ width: '100%', padding: '2px 4px', fontSize: 12, border: 'none', background: 'transparent', color: 'var(--gx-text)', outline: 'none', fontFamily: 'inherit' }}
+      />
+    )
+  }
+  return (
+    <span
+      onClick={() => { setLocal(value); setEditing(true) }}
+      style={{ display: 'block', padding: '4px 6px', fontSize: 12, color: 'var(--gx-text)', cursor: 'text', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+    >{fmtDate(value)}</span>
+  )
 }
 
 function Cell({ value, onChange, type = 'text', min, style }) {
@@ -173,10 +205,10 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                   <Cell value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
                 </td>
                 <td style={{ ...td, width: colWidths.start }}>
-                  <Cell value={task.start} type="date" onChange={v => onUpdate(task.id, { start: v })} />
+                  <DateCell value={task.start} onChange={v => onUpdate(task.id, { start: v })} />
                 </td>
                 <td style={{ ...td, width: colWidths.end }}>
-                  <Cell value={task.end} type="date" min={task.start} onChange={v => onUpdate(task.id, { end: v })} />
+                  <DateCell value={task.end} min={task.start} onChange={v => onUpdate(task.id, { end: v })} />
                 </td>
                 <td style={{ ...td, width: colWidths.dur, color: 'var(--gx-text-muted)', padding: '2px 8px', whiteSpace: 'nowrap' }}>
                   {duration(task.start, task.end)}
