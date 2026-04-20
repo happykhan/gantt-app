@@ -1,29 +1,71 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
-import { toPng } from 'html-to-image'
-import InputPanel from './components/InputPanel'
+import { toPng, toSvg } from 'html-to-image'
 import CustomGantt from './components/CustomGantt'
-import TaskEditor from './components/TaskEditor'
 import BottomSheet from './components/BottomSheet'
+import ImportModal from './components/ImportModal'
+import TaskTable from './components/TaskTable'
+import { generateSampleData } from './utils/parseInput'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
 
-function GanttPage({ tasks, setTasks, onReset }) {
-  const [viewMode, setViewMode] = useState('Quarter')
+const LS_KEY = 'gantt-app-v1'
+
+function loadInitial() {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      if (Array.isArray(saved.tasks) && saved.tasks.length)
+        return { tasks: saved.tasks, chartTitle: saved.chartTitle || '', categoryColors: saved.categoryColors || {} }
+    }
+  } catch {}
+  return {
+    tasks: generateSampleData().map(t => ({ ...t, id: t.id || makeId() })),
+    chartTitle: '',
+    categoryColors: {},
+  }
+}
+
+function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
+  const [viewMode, setViewMode] = useState(() => window.innerWidth < 768 ? 'Year' : 'Quarter')
   const [selectedId, setSelectedId] = useState(null)
-  const [showDeps, setShowDeps] = useState(null)
   const [zoom, setZoom] = useState(1)
-  const [categoryColors, setCategoryColors] = useState({})
-  const [showSidebar, setShowSidebar] = useState(false) // mobile sidebar toggle
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
   const ganttAreaRef = useRef()
+  const ganttExportRef = useRef()
+  const ganttScrollRef = useRef()
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
 
+  // Delete key shortcut
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (!selectedId) return
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === 'Delete' || e.key === 'Backspace') handleDelete(selectedId)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedId])
+
   function handleColorChange(cat, color) {
     setCategoryColors(prev => ({ ...prev, [cat]: color }))
+  }
+  function handleRenameCategory(oldCat, newCat) {
+    const trimmed = newCat.trim()
+    if (!trimmed || trimmed === oldCat) return
+    setTasks(prev => prev.map(t => t.category === oldCat ? { ...t, category: trimmed } : t))
+    setCategoryColors(prev => {
+      const next = { ...prev }
+      if (next[oldCat] !== undefined) { next[trimmed] = next[oldCat]; delete next[oldCat] }
+      return next
+    })
   }
   function handleTaskChange(id, changes) {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
@@ -40,9 +82,15 @@ function GanttPage({ tasks, setTasks, onReset }) {
     })
     if (selectedId === id) setSelectedId(null)
   }
-  function handleAdd(taskData) {
-    const newTask = { ...taskData, id: makeId() }
-    setTasks(prev => [...prev, newTask])
+  function handleMoveTask(id, dir) {
+    setTasks(prev => {
+      const idx = prev.findIndex(t => t.id === id)
+      const next = idx + dir
+      if (next < 0 || next >= prev.length) return prev
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]]
+      return arr
+    })
   }
   function handleAddNew() {
     const last = tasks[tasks.length - 1]
@@ -52,18 +100,20 @@ function GanttPage({ tasks, setTasks, onReset }) {
     setTasks(prev => [...prev, newTask])
     setSelectedId(newTask.id)
   }
-  function toggleDep(taskId, depId) {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t
-      const deps = t.dependencies ? t.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []
-      const idx = deps.indexOf(depId)
-      const newDeps = idx >= 0 ? deps.filter(d => d !== depId) : [...deps, depId]
-      return { ...t, dependencies: newDeps.join(', ') }
-    }))
+  function handleImport(newTasks) {
+    setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
+  }
+  function handleClear() {
+    if (window.confirm('Clear all tasks?')) {
+      setTasks([])
+      setChartTitle('')
+      setCategoryColors({})
+      setSelectedId(null)
+    }
   }
 
   function saveProject() {
-    const blob = new Blob([JSON.stringify({ tasks }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ tasks, chartTitle }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'gantt-project.json'
@@ -75,20 +125,54 @@ function GanttPage({ tasks, setTasks, onReset }) {
     const reader = new FileReader()
     reader.onload = e => {
       try {
-        const { tasks: loaded } = JSON.parse(e.target.result)
+        const { tasks: loaded, chartTitle: loadedTitle } = JSON.parse(e.target.result)
         if (Array.isArray(loaded) && loaded.length) setTasks(loaded)
+        if (loadedTitle) setChartTitle(loadedTitle)
       } catch { /* ignore */ }
     }
     reader.readAsText(file)
   }
-  async function exportPNG() {
-    const el = ganttAreaRef.current
-    if (!el) return
+  async function captureExport(fn, filename) {
+    const outer = ganttExportRef.current
+    const scroll = ganttScrollRef.current
+    const area = ganttAreaRef.current
+    if (!outer || !scroll) return
+
+    const w = scroll.scrollWidth
+    const h = scroll.scrollHeight
+
+    // Temporarily make all clipping containers fully visible so html-to-image
+    // captures the entire chart, not just the current viewport
+    const saved = [outer, scroll, area].filter(Boolean).map(el => ({
+      el,
+      overflow: el.style.overflow,
+      overflowX: el.style.overflowX,
+      overflowY: el.style.overflowY,
+      height: el.style.height,
+      maxHeight: el.style.maxHeight,
+    }))
+    ;[outer, scroll, area].filter(Boolean).forEach(el => {
+      el.style.overflow = 'visible'
+      el.style.height = 'auto'
+      el.style.maxHeight = 'none'
+    })
+
     try {
-      const url = await toPng(el, { backgroundColor: '#ffffff', pixelRatio: 2 })
-      const a = document.createElement('a'); a.href = url; a.download = 'gantt.png'; a.click()
-    } catch (e) { console.error(e) }
+      const url = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: 2, width: w, height: h })
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+    } catch (e) { console.error(e); alert('Export failed — try zooming to 100% first.') }
+    finally {
+      saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
+        el.style.overflow = overflow
+        el.style.overflowX = overflowX
+        el.style.overflowY = overflowY
+        el.style.height = height
+        el.style.maxHeight = maxHeight
+      })
+    }
   }
+  async function exportPNG() { await captureExport(toPng, 'gantt.png') }
+  async function exportSVG() { await captureExport(toSvg, 'gantt.svg') }
 
   const ZOOM_STEP = 0.25, ZOOM_MIN = 0.5, ZOOM_MAX = 2
 
@@ -96,65 +180,50 @@ function GanttPage({ tasks, setTasks, onReset }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
-        {/* View modes */}
         {['Week','Month','Quarter','Year'].map(m => (
           <button key={m} onClick={() => setViewMode(m)}
             className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-            style={{ fontSize: 12, padding: '3px 8px' }}>
-            {m}
-          </button>
+            style={{ fontSize: 12, padding: '3px 8px' }}>{m}</button>
         ))}
         <span style={{ width: 4 }} />
-        {/* Zoom */}
         <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
           className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
         <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
           className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
         <div style={{ flex: 1 }} />
-        {/* Task list toggle (mobile) */}
-        <button onClick={() => setShowSidebar(s => !s)}
-          className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
-          title="Show/hide task list">
-          ☰ Tasks
+        <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+          {showTable ? '▲ Table' : '▼ Table'}
         </button>
+        <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Import</button>
         <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Save</button>
         <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
           Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
         </label>
         <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
-        <button onClick={onReset} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>← New</button>
+        <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
+        <button onClick={handleClear} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        {/* Task sidebar (collapsible on mobile) */}
-        {showSidebar && (
-          <aside style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--gx-border)', background: 'var(--gx-surface)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            {/* Dependency editor */}
-            {selectedTask && (
-              <div style={{ padding: 10, borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-accent-dim)' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-accent)', marginBottom: 4, textTransform: 'uppercase' }}>Dependencies for: {selectedTask.name}</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {tasks.filter(t => t.id !== selectedId).map(t => {
-                    const deps = selectedTask.dependencies ? selectedTask.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []
-                    const checked = deps.includes(t.id)
-                    return (
-                      <button key={t.id} onClick={() => toggleDep(selectedId, t.id)}
-                        className={checked ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-                        style={{ fontSize: 11 }}>
-                        {checked ? '✓ ' : ''}{t.name}
-                      </button>
-                    )
-                  })}
-                </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        {/* Gantt chart area */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
+          {/* Chart title */}
+          <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
+            {editingTitle ? (
+              <input autoFocus value={chartTitle} onChange={e => setChartTitle(e.target.value)}
+                onBlur={() => setEditingTitle(false)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingTitle(false) }}
+                placeholder="Enter chart title…"
+                style={{ width: '100%', fontSize: 15, fontWeight: 600, border: 'none', borderBottom: '2px solid var(--gx-accent)', outline: 'none', background: 'transparent', color: 'var(--gx-text)', padding: '2px 0' }} />
+            ) : (
+              <div onClick={() => setEditingTitle(true)} title="Tap to set chart title"
+                style={{ fontSize: 15, fontWeight: 600, color: chartTitle ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: 'text', minHeight: 24 }}>
+                {chartTitle || 'Tap to add chart title…'}
               </div>
             )}
-            <TaskEditor tasks={tasks} categories={categories} onUpdate={handleTaskChange} onDelete={handleDelete} onAdd={handleAdd} />
-          </aside>
-        )}
+          </div>
 
-        {/* Gantt chart */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
           <div ref={ganttAreaRef} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
             <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${(100/zoom).toFixed(1)}%`, height: `${(100/zoom).toFixed(1)}%` }}>
               <CustomGantt
@@ -164,26 +233,42 @@ function GanttPage({ tasks, setTasks, onReset }) {
                 onColorChange={handleColorChange}
                 onTaskChange={handleTaskChange}
                 onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
+                onRenameCategory={handleRenameCategory}
+                exportRef={ganttExportRef}
+                scrollExportRef={ganttScrollRef}
               />
             </div>
           </div>
 
           {/* FAB: Add task */}
-          <button
-            onClick={handleAddNew}
+          <button onClick={handleAddNew}
             style={{
               position: 'absolute', bottom: 20, right: 20,
               width: 52, height: 52, borderRadius: '50%',
               background: 'var(--gx-accent)', color: '#fff',
-              border: 'none', fontSize: 26, lineHeight: 1,
-              cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 10,
-            }}
-            title="Add task"
-          >+</button>
+              border: 'none', fontSize: 26, lineHeight: 1, cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
+            }} title="Add task">+</button>
         </main>
+
+        {/* Task table (collapsible) */}
+        {showTable && (
+          <div style={{ borderTop: '2px solid var(--gx-border)', flexShrink: 0 }}>
+            <TaskTable
+              tasks={tasks}
+              categories={categories}
+              onUpdate={handleTaskChange}
+              onDelete={handleDelete}
+              onAdd={handleAddNew}
+              onMove={handleMoveTask}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Import modal */}
+      {showImport && <ImportModal onLoad={handleImport} onClose={() => setShowImport(false)} />}
 
       {/* Bottom sheet (mobile task editor) */}
       {selectedTask && (
@@ -193,6 +278,8 @@ function GanttPage({ tasks, setTasks, onReset }) {
           onUpdate={handleTaskChange}
           onDelete={handleDelete}
           onClose={() => setSelectedId(null)}
+          onMoveUp={tasks.indexOf(selectedTask) > 0 ? () => handleMoveTask(selectedId, -1) : null}
+          onMoveDown={tasks.indexOf(selectedTask) < tasks.length - 1 ? () => handleMoveTask(selectedId, 1) : null}
         />
       )}
     </div>
@@ -200,13 +287,17 @@ function GanttPage({ tasks, setTasks, onReset }) {
 }
 
 function App() {
-  const [tasks, setTasks] = useState([])
-  const [view, setView] = useState('input')
+  const initial = loadInitial()
+  const [tasks, setTasks] = useState(initial.tasks)
+  const [chartTitle, setChartTitle] = useState(initial.chartTitle)
+  const [categoryColors, setCategoryColors] = useState(initial.categoryColors)
 
-  function handleLoad(newTasks) {
-    setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
-    setView('gantt')
-  }
+  // Autosave
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ tasks, chartTitle, categoryColors }))
+    } catch {}
+  }, [tasks, chartTitle, categoryColors])
 
   return (
     <BrowserRouter>
@@ -230,16 +321,14 @@ function App() {
           }
         />
 
-        {view === 'input' ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, overflow: 'auto' }}>
-            <InputPanel onLoad={handleLoad} />
-          </div>
-        ) : (
-          <GanttPage tasks={tasks} setTasks={setTasks} onReset={() => { setView('input'); setTasks([]) }} />
-        )}
+        <GanttPage
+          tasks={tasks} setTasks={setTasks}
+          chartTitle={chartTitle} setChartTitle={setChartTitle}
+          categoryColors={categoryColors} setCategoryColors={setCategoryColors}
+        />
 
-        <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '8px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
-          <span>Gantt Builder — runs locally in your browser</span>
+        <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '6px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
+          <span>Gantt Builder — autosaved in your browser</span>
           <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>GitHub</a>
         </footer>
       </div>
