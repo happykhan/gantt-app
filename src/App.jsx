@@ -135,16 +135,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }
   async function captureExport(fn, filename) {
     const outer = ganttExportRef.current
-    const scroll = ganttScrollRef.current
-    const area = ganttAreaRef.current
-    if (!outer || !scroll) return
+    if (!outer) return
 
-    const w = scroll.scrollWidth
-    const h = scroll.scrollHeight
+    // Find every element inside outer that clips overflow, not just the known refs.
+    // This handles both inline and classic layouts without hardcoding specific refs.
+    const CLIP = new Set(['hidden', 'auto', 'scroll', 'clip'])
+    const clips = [outer, ...outer.querySelectorAll('*')].filter(el => {
+      const s = getComputedStyle(el)
+      return CLIP.has(s.overflow) || CLIP.has(s.overflowX) || CLIP.has(s.overflowY)
+    })
 
-    // Temporarily make all clipping containers fully visible so html-to-image
-    // captures the entire chart, not just the current viewport
-    const saved = [outer, scroll, area].filter(Boolean).map(el => ({
+    const saved = clips.map(el => ({
       el,
       overflow: el.style.overflow,
       overflowX: el.style.overflowX,
@@ -152,11 +153,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       height: el.style.height,
       maxHeight: el.style.maxHeight,
     }))
-    ;[outer, scroll, area].filter(Boolean).forEach(el => {
+    clips.forEach(el => {
       el.style.overflow = 'visible'
+      el.style.overflowX = 'visible'
+      el.style.overflowY = 'visible'
       el.style.height = 'auto'
       el.style.maxHeight = 'none'
     })
+
+    // Measure full size after expanding
+    const w = outer.scrollWidth
+    const h = outer.scrollHeight
 
     try {
       const url = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: 2, width: w, height: h })

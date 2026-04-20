@@ -66,6 +66,22 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   const dragRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
+  const [labelWidth, setLabelWidth] = useState(LABEL_W)
+
+  function startLabelResize(e) {
+    const startX = e.clientX
+    const startW = labelWidth
+    function onMove(ev) {
+      setLabelWidth(Math.max(60, Math.min(400, startW + ev.clientX - startX)))
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    e.preventDefault()
+  }
 
   const colPx = COL_PX[viewMode] || 80
 
@@ -359,16 +375,16 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           <div
             ref={labelColRef}
             style={{
-              width: LABEL_W, flexShrink: 0,
+              width: labelWidth, flexShrink: 0,
               overflowY: 'hidden', overflowX: 'hidden',
-              borderRight: '2px solid var(--gx-border)',
               background: 'var(--gx-surface)',
               display: 'flex', flexDirection: 'column',
+              position: 'relative',
               zIndex: 3,
             }}
           >
             {/* Header placeholder aligned with chart header */}
-            <div style={{ height: HEADER_H, borderBottom: '2px solid var(--gx-border)', flexShrink: 0 }} />
+            <div style={{ height: HEADER_H, borderBottom: '2px solid var(--gx-border)', borderRight: '2px solid var(--gx-border)', flexShrink: 0 }} />
             {/* Task name rows */}
             {tasks.map((task, i) => (
               <div
@@ -377,8 +393,9 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 style={{
                   height: ROW_H, flexShrink: 0,
                   display: 'flex', alignItems: 'center',
-                  padding: '0 10px 0 12px',
+                  padding: '0 18px 0 12px',
                   borderBottom: '1px solid var(--gx-border)',
+                  borderRight: '2px solid var(--gx-border)',
                   background: i % 2 === 0 ? 'var(--gx-surface)' : 'var(--gx-bg-alt)',
                   cursor: 'pointer',
                   fontSize: 12, fontWeight: 500, color: 'var(--gx-text)',
@@ -387,6 +404,16 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
               </div>
             ))}
+            {/* Resize handle */}
+            <div
+              onMouseDown={startLabelResize}
+              style={{
+                position: 'absolute', right: 0, top: 0, bottom: 0, width: 6,
+                cursor: 'col-resize', zIndex: 4,
+                background: 'transparent',
+              }}
+              title="Drag to resize"
+            />
           </div>
 
           {/* Chart area */}
