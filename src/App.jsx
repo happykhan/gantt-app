@@ -199,7 +199,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           style={{ fontSize: 12, padding: '3px 8px' }}
           title={labelMode === 'inline' ? 'Switch to classic layout (labels on left)' : 'Switch to inline layout (labels in bars)'}
         >
-          {labelMode === 'inline' ? '☰ Classic' : '▦ Inline'}
+          {labelMode === 'inline' ? 'Classic' : 'Inline'}
         </button>
         <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
           {showTable ? '▲ Table' : '▼ Table'}
