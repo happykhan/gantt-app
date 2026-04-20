@@ -3,6 +3,7 @@ import { useState } from 'react'
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
 const DEFAULT_COL_WIDTHS = { name: 160, start: 82, end: 82, dur: 52, category: 110, progress: 52, deps: 130 }
+const MIN_COL_WIDTHS    = { name: 60,  start: 60, end: 60, dur: 36, category: 60,  progress: 36, deps: 50  }
 
 function loadColWidths() {
   try {
@@ -125,7 +126,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     let lastW = startW
     function onMove(ev) {
       const x = ev.touches ? ev.touches[0].clientX : ev.clientX
-      lastW = Math.max(40, startW + x - startX)
+      lastW = Math.max(MIN_COL_WIDTHS[key] ?? 40, startW + x - startX)
       setColWidths(prev => ({ ...prev, [key]: lastW }))
     }
     function onUp() {
@@ -159,21 +160,20 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left',
     borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap',
     background: 'var(--gx-surface)', position: 'sticky', top: 0, zIndex: 2,
-    overflow: 'hidden',
   }
   const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle', overflow: 'hidden' }
 
   // Resizable th: label + drag handle on right edge
   function RH({ colKey, label, extra = {} }) {
     return (
-      <th style={{ ...thBase, width: colWidths[colKey], maxWidth: colWidths[colKey], position: 'sticky', top: 0, zIndex: 2, ...extra }}>
+      <th style={{ ...thBase, width: colWidths[colKey], maxWidth: colWidths[colKey], position: 'sticky', top: 0, zIndex: 2, overflow: 'visible', ...extra }}>
         <div style={{ display: 'flex', alignItems: 'center', position: 'relative', paddingRight: 6 }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
           <div
             onMouseDown={e => startColResize(colKey, e)}
             onTouchStart={e => startColResize(colKey, e)}
             style={{
-              position: 'absolute', right: -4, top: -6, bottom: -6, width: 8,
+              position: 'absolute', right: -3, top: -6, bottom: -6, width: 10,
               cursor: 'col-resize', zIndex: 3,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}

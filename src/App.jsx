@@ -57,6 +57,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     try { return parseInt(localStorage.getItem('gantt-exportScale'), 10) || 2 } catch { return 2 }
   })
   const [showSettings, setShowSettings] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
   const [showMore, setShowMore] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -424,7 +425,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 </>
               )}
             </div>
-            <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
+            <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Remove all tasks and reset the chart">Clear</button>
+            <button onClick={() => setShowHelp(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', fontWeight: 700 }} title="Keyboard shortcuts and tips">?</button>
           </>
         )}
 
@@ -463,6 +465,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = ''; setShowMore(false) }} />
               </label>
               <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
+              <button onClick={() => { setShowHelp(true); setShowMore(false) }}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Help &amp; shortcuts
+              </button>
               <button onClick={() => { setConfirmClear(true); setShowMore(false) }}
                 style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-error)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Clear all
@@ -676,6 +682,82 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             </div>
 
             <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
+          </div>
+        </>
+      )}
+
+      {/* Help modal */}
+      {showHelp && (
+        <>
+          <div onClick={() => setShowHelp(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 400, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Help &amp; shortcuts</h3>
+              <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {[
+              {
+                heading: 'Keyboard shortcuts',
+                note: 'Click a task bar first to select it',
+                rows: [
+                  ['Delete / Backspace', 'Remove selected task'],
+                  ['Escape', 'Deselect task'],
+                  ['← →', 'Nudge task ±1 day'],
+                  ['Shift + ← →', 'Nudge task ±7 days'],
+                  ['↑ ↓', 'Reorder task up / down'],
+                  ['Double-click bar', 'Rename task inline'],
+                ],
+              },
+              {
+                heading: 'Chart',
+                rows: [
+                  ['Click bar', 'Select task (opens editor on mobile)'],
+                  ['Click chart title', 'Edit the chart title'],
+                  ['Drag label column edge', 'Resize the task name column'],
+                  ['Zoom − / +', 'Shrink or expand the time axis'],
+                  ['Week / Month / Quarter / Year', 'Change time scale'],
+                  ['Classic / Inline', 'Labels in a column vs. inside bars'],
+                ],
+              },
+              {
+                heading: 'Task table',
+                rows: [
+                  ['Click any cell', 'Edit task name, category, or progress'],
+                  ['Click date', 'Open date picker'],
+                  ['Click Deps cell (✎)', 'Choose predecessor tasks'],
+                  ['Drag column header edge', 'Resize column'],
+                  ['Drag resize handle', 'Adjust table height'],
+                  ['↑ ↓ buttons', 'Reorder tasks'],
+                ],
+              },
+              {
+                heading: 'Files',
+                rows: [
+                  ['Save', 'Download .json (tasks + colours)'],
+                  ['Load', 'Restore a saved .json project'],
+                  ['Import', 'Load tasks from CSV, Excel or JSON'],
+                  ['Export → PNG', 'Raster image for Word / slides'],
+                  ['Export → SVG', 'Vector image for Inkscape'],
+                  ['Export → PDF', 'A4 PDF for print / sharing'],
+                ],
+              },
+            ].map(({ heading, note, rows }) => (
+              <div key={heading} style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: note ? 2 : 8 }}>{heading}</div>
+                {note && <div style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginBottom: 8 }}>{note}</div>}
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
+                  {rows.map(([key, desc]) => (
+                    <>
+                      <span key={key + '-k'} style={{ fontSize: 12, fontFamily: 'monospace', background: 'var(--gx-bg-alt)', border: '1px solid var(--gx-border)', borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap', alignSelf: 'center', color: 'var(--gx-text)' }}>{key}</span>
+                      <span key={key + '-d'} style={{ fontSize: 12, color: 'var(--gx-text-muted)', alignSelf: 'center' }}>{desc}</span>
+                    </>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <button onClick={() => setShowHelp(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Close</button>
           </div>
         </>
       )}
