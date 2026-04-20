@@ -234,6 +234,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                 <td style={{ ...td, width: colWidths.deps }}>
                   <div
                     onClick={() => setOpenDepsId(openDepsId === task.id ? null : task.id)}
+                    title="Click to set which tasks must finish before this one starts"
                     style={{ cursor: 'pointer', display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 24, alignItems: 'center', padding: '2px 4px' }}
                   >
                     {getDepNames(task).length === 0

@@ -371,14 +371,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         {['Week','Month','Quarter','Year'].map(m => (
           <button key={m} onClick={() => setViewMode(m)}
             className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
+            title={`${m} view`}
             style={{ fontSize: 12, padding: '3px 8px' }}>{isMobile ? m.charAt(0) : m}</button>
         ))}
         <span style={{ width: 4 }} />
         <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
-          className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
-        <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+          className="gx-btn gx-btn-secondary" title="Zoom out" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
+        <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }} title="Current zoom level">{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
-          className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
+          className="gx-btn gx-btn-secondary" title="Zoom in" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
         <div style={{ flex: 1 }} />
 
         {isMobile ? (
@@ -387,28 +388,34 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         ) : (
           <>
             <button onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
-              className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+              className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
+              title={labelMode === 'inline' ? 'Classic: task names shown in a left-hand column' : 'Inline: task names shown inside the bars'}>
               {labelMode === 'inline' ? 'Classic' : 'Inline'}
             </button>
-            <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>⚙ Settings</button>
-            <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+            <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Display settings: row density, font, colours, export resolution">⚙ Settings</button>
+            <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
+              title={showTable ? 'Hide the task editor table' : 'Show the task editor table'}>
               {showTable ? '▲ Table' : '▼ Table'}
             </button>
-            <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Import</button>
-            <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Save</button>
-            <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
+            <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Import tasks from CSV, Excel or JSON">Import</button>
+            <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Save project as a .json file (includes tasks, title and colours)">Save</button>
+            <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }} title="Load a previously saved .json project file">
               Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
             </label>
             <div style={{ position: 'relative' }}>
-              <button onClick={() => setShowExport(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+              <button onClick={() => setShowExport(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Export chart as image or PDF">
                 Export ▾
               </button>
               {showExport && (
                 <>
                   <div onClick={() => setShowExport(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
                   <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 3, zIndex: 99, background: 'var(--gx-surface)', border: '1px solid var(--gx-border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: 110, padding: '4px 0' }}>
-                    {[['PNG', exportPNG], ['SVG', exportSVG], ['PDF', exportPDF]].map(([label, action]) => (
-                      <button key={label} onClick={() => { action(); setShowExport(false) }}
+                    {[
+                      ['PNG', exportPNG, 'Raster image — best for Word, PowerPoint, email'],
+                      ['SVG', exportSVG, 'Vector image — opens in Inkscape and browsers'],
+                      ['PDF', exportPDF, 'A4 PDF — best for printing and sharing'],
+                    ].map(([label, action, tip]) => (
+                      <button key={label} onClick={() => { action(); setShowExport(false) }} title={tip}
                         style={{ display: 'block', width: '100%', padding: '9px 14px', fontSize: 13, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
                         {label}
                       </button>
@@ -577,8 +584,12 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Row density</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {['compact', 'normal', 'spacious'].map(d => (
-                  <button key={d} onClick={() => setDisplayDensity(d)}
+                {[
+                  { d: 'compact',  tip: 'Compact: smaller rows, fits more tasks on screen' },
+                  { d: 'normal',   tip: 'Normal: default row height' },
+                  { d: 'spacious', tip: 'Spacious: taller rows, easier to click on touch devices' },
+                ].map(({ d, tip }) => (
+                  <button key={d} onClick={() => setDisplayDensity(d)} title={tip}
                     className={displayDensity === d ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, textTransform: 'capitalize' }}>{d}</button>
                 ))}
@@ -648,12 +659,12 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               <div style={settingsLabel}>PNG export resolution</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {[
-                  { scale: 1, label: '1×', note: 'screen' },
-                  { scale: 2, label: '2×', note: 'Word' },
-                  { scale: 3, label: '3×', note: 'sharp' },
-                  { scale: 4, label: '4×', note: 'print' },
-                ].map(({ scale, label, note }) => (
-                  <button key={scale} onClick={() => setExportScale(scale)}
+                  { scale: 1, label: '1×', note: 'screen',  tip: '1× — screen resolution, smallest file' },
+                  { scale: 2, label: '2×', note: 'Word',    tip: '2× — good for Word and PowerPoint' },
+                  { scale: 3, label: '3×', note: 'sharp',   tip: '3× — crisp on high-DPI displays' },
+                  { scale: 4, label: '4×', note: 'print',   tip: '4× — best for print, largest file' },
+                ].map(({ scale, label, note, tip }) => (
+                  <button key={scale} onClick={() => setExportScale(scale)} title={tip}
                     className={exportScale === scale ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                   >
