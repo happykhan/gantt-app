@@ -459,16 +459,30 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             {/* Colour palette */}
             <div style={{ marginBottom: 20 }}>
               <div style={settingsLabel}>Colour palette</div>
-              <select defaultValue="" onChange={e => { if (e.target.value) applyPalette(e.target.value) }} style={selectStyle}>
-                <option value="" disabled>Apply a palette…</option>
-                <option value="default">Default</option>
-                <option value="bold">Bold</option>
-                <option value="pastel">Pastel</option>
-                <option value="earth">Earth tones</option>
-                <option value="viridis">Viridis</option>
-                <option value="monochrome">Monochrome</option>
-              </select>
-              <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginTop: 4, display: 'block' }}>Overwrites current WP colours</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {Object.entries(PALETTES).map(([name, colours]) => (
+                  <button
+                    key={name}
+                    onClick={() => applyPalette(name)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 8px', borderRadius: 7, cursor: 'pointer',
+                      background: 'var(--gx-bg-alt)', border: '1px solid var(--gx-border)',
+                      textAlign: 'left', width: '100%', fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gx-accent)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--gx-border)'}
+                  >
+                    <span style={{ fontSize: 12, color: 'var(--gx-text)', width: 72, flexShrink: 0, textTransform: 'capitalize' }}>{name === 'default' ? 'Default' : name.charAt(0).toUpperCase() + name.slice(1)}</span>
+                    <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+                      {colours.slice(0, 8).map((c, i) => (
+                        <span key={i} style={{ flex: 1, height: 16, borderRadius: 3, background: c }} />
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginTop: 5, display: 'block' }}>Overwrites current WP colours</span>
             </div>
 
             <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
