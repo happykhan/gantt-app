@@ -177,20 +177,20 @@ export function generateSampleData() {
 
   return [
     // WP1: Establishing methods & resources
-    { id: 'task-1', name: 'Systematic literature review', start: fmt(base), end: fmt(addM(base, 3)), progress: 0, category: 'WP1', dependencies: '' },
-    { id: 'task-2', name: 'Establish experimental protocols', start: fmt(addM(base, 1)), end: fmt(addM(base, 6)), progress: 0, category: 'WP1', dependencies: '' },
-    { id: 'task-3', name: 'Recruit study cohort', start: fmt(addM(base, 3)), end: fmt(addM(base, 12)), progress: 0, category: 'WP1', dependencies: 'task-2' },
-    // WP2: Data collection & generation
-    { id: 'task-4', name: 'Sample collection & processing', start: fmt(addM(base, 6)), end: fmt(addM(base, 18)), progress: 0, category: 'WP2', dependencies: 'task-3' },
-    { id: 'task-5', name: 'Genomic sequencing', start: fmt(addM(base, 9)), end: fmt(addM(base, 21)), progress: 0, category: 'WP2', dependencies: 'task-4' },
-    { id: 'task-6', name: 'Phenotypic characterisation', start: fmt(addM(base, 12)), end: fmt(addM(base, 24)), progress: 0, category: 'WP2', dependencies: 'task-4' },
+    { id: 'task-1', name: 'Systematic literature review',     start: fmt(base),           end: fmt(addM(base, 3)),  progress: 0, category: 'WP1', dependencies: '' },
+    { id: 'task-2', name: 'Establish experimental protocols', start: fmt(addM(base, 1)),  end: fmt(addM(base, 6)),  progress: 0, category: 'WP1', dependencies: '' },
+    { id: 'task-3', name: 'Recruit study cohort',             start: fmt(addM(base, 6)),  end: fmt(addM(base, 12)), progress: 0, category: 'WP1', dependencies: 'task-2' },
+    // WP2: Data collection & generation  (each starts when its dependency ends)
+    { id: 'task-4', name: 'Sample collection & processing',   start: fmt(addM(base, 12)), end: fmt(addM(base, 18)), progress: 0, category: 'WP2', dependencies: 'task-3' },
+    { id: 'task-5', name: 'Genomic sequencing',               start: fmt(addM(base, 18)), end: fmt(addM(base, 21)), progress: 0, category: 'WP2', dependencies: 'task-4' },
+    { id: 'task-6', name: 'Phenotypic characterisation',      start: fmt(addM(base, 18)), end: fmt(addM(base, 24)), progress: 0, category: 'WP2', dependencies: 'task-4' },
     // WP3: Analysis
-    { id: 'task-7', name: 'Develop analysis pipeline', start: fmt(addM(base, 6)), end: fmt(addM(base, 15)), progress: 0, category: 'WP3', dependencies: '' },
-    { id: 'task-8', name: 'Genome-wide association study', start: fmt(addM(base, 18)), end: fmt(addM(base, 27)), progress: 0, category: 'WP3', dependencies: 'task-5,task-7' },
-    { id: 'task-9', name: 'Functional validation experiments', start: fmt(addM(base, 24)), end: fmt(addM(base, 33)), progress: 0, category: 'WP3', dependencies: 'task-8' },
+    { id: 'task-7', name: 'Develop analysis pipeline',        start: fmt(addM(base, 6)),  end: fmt(addM(base, 15)), progress: 0, category: 'WP3', dependencies: '' },
+    { id: 'task-8', name: 'Genome-wide association study',    start: fmt(addM(base, 21)), end: fmt(addM(base, 27)), progress: 0, category: 'WP3', dependencies: 'task-5,task-7' },
+    { id: 'task-9', name: 'Functional validation experiments',start: fmt(addM(base, 27)), end: fmt(addM(base, 33)), progress: 0, category: 'WP3', dependencies: 'task-8' },
     // WP4: Dissemination
-    { id: 'task-10', name: 'Conference presentations', start: fmt(addM(base, 12)), end: fmt(addM(base, 36)), progress: 0, category: 'WP4', dependencies: '' },
-    { id: 'task-11', name: 'Manuscript preparation', start: fmt(addM(base, 27)), end: fmt(addM(base, 34)), progress: 0, category: 'WP4', dependencies: 'task-8' },
-    { id: 'task-12', name: 'Submit papers & final report', start: fmt(addM(base, 34)), end: fmt(addM(base, 36)), progress: 0, category: 'WP4', dependencies: 'task-11' },
+    { id: 'task-10', name: 'Conference presentations',        start: fmt(addM(base, 12)), end: fmt(addM(base, 36)), progress: 0, category: 'WP4', dependencies: '' },
+    { id: 'task-11', name: 'Manuscript preparation',          start: fmt(addM(base, 27)), end: fmt(addM(base, 34)), progress: 0, category: 'WP4', dependencies: 'task-8' },
+    { id: 'task-12', name: 'Submit papers & final report',    start: fmt(addM(base, 34)), end: fmt(addM(base, 36)), progress: 0, category: 'WP4', dependencies: 'task-11' },
   ]
 }
