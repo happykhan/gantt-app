@@ -2,6 +2,15 @@ import { useState } from 'react'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
+const DEFAULT_COL_WIDTHS = { name: 160, start: 110, end: 110, dur: 52, category: 110, progress: 52, deps: 130 }
+
+function loadColWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gantt-colWidths') || '{}')
+    return { ...DEFAULT_COL_WIDTHS, ...saved }
+  } catch { return { ...DEFAULT_COL_WIDTHS } }
+}
+
 function DepsModal({ task, tasks, onSave, onClose }) {
   const [deps, setDeps] = useState(() =>
     new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
@@ -75,6 +84,30 @@ function Cell({ value, onChange, type = 'text', min, style }) {
 
 export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240 }) {
   const [openDepsId, setOpenDepsId] = useState(null)
+  const [colWidths, setColWidths] = useState(loadColWidths)
+
+  function startColResize(key, e) {
+    const startX = e.clientX
+    const startW = colWidths[key]
+    let lastW = startW
+    function onMove(ev) {
+      lastW = Math.max(40, startW + ev.clientX - startX)
+      setColWidths(prev => ({ ...prev, [key]: lastW }))
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setColWidths(prev => {
+        const next = { ...prev, [key]: lastW }
+        try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch {}
+        return next
+      })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
   function getDepNames(task) {
     if (!task.dependencies) return []
@@ -83,25 +116,50 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
       .filter(Boolean)
   }
 
-  const th = { padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)',
+  const thBase = {
+    padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left',
-    borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap', background: 'var(--gx-surface)', position: 'sticky', top: 0, zIndex: 2 }
-  const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle' }
+    borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap',
+    background: 'var(--gx-surface)', position: 'sticky', top: 0, zIndex: 2,
+    overflow: 'hidden',
+  }
+  const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle', overflow: 'hidden' }
+
+  // Resizable th: label + drag handle on right edge
+  function RH({ colKey, label, extra = {} }) {
+    return (
+      <th style={{ ...thBase, width: colWidths[colKey], maxWidth: colWidths[colKey], position: 'sticky', top: 0, zIndex: 2, ...extra }}>
+        <div style={{ display: 'flex', alignItems: 'center', position: 'relative', paddingRight: 6 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+          <div
+            onMouseDown={e => startColResize(colKey, e)}
+            style={{
+              position: 'absolute', right: -4, top: -6, bottom: -6, width: 8,
+              cursor: 'col-resize', zIndex: 3,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <div style={{ width: 2, height: 14, borderRadius: 1, background: 'var(--gx-border)' }} />
+          </div>
+        </div>
+      </th>
+    )
+  }
 
   return (
     <div style={{ overflowX: 'auto', overflowY: 'auto', height: tableHeight, flexShrink: 0 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
-            <th style={th}>#</th>
-            <th style={{ ...th, minWidth: 160 }}>Task name</th>
-            <th style={th}>Start</th>
-            <th style={th}>End</th>
-            <th style={th}>Dur</th>
-            <th style={th}>Category</th>
-            <th style={{ ...th, width: 60 }}>%</th>
-            <th style={th}>Deps</th>
-            <th style={th}></th>
+            <th style={{ ...thBase, width: 32 }}>#</th>
+            <RH colKey="name" label="Task name" />
+            <RH colKey="start" label="Start" />
+            <RH colKey="end" label="End" />
+            <RH colKey="dur" label="Dur" />
+            <RH colKey="category" label="Category" />
+            <RH colKey="progress" label="%" />
+            <RH colKey="deps" label="Deps" />
+            <th style={{ ...thBase, width: 72 }}></th>
           </tr>
         </thead>
         <tbody>
@@ -110,31 +168,31 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
             const dot = DEFAULT_COLORS[Math.max(0, catIdx) % DEFAULT_COLORS.length]
             return (
               <tr key={task.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }}>
-                <td style={{ ...td, padding: '2px 8px', color: 'var(--gx-text-muted)', fontSize: 11 }}>{idx + 1}</td>
-                <td style={td}>
+                <td style={{ ...td, padding: '2px 8px', color: 'var(--gx-text-muted)', fontSize: 11, width: 32 }}>{idx + 1}</td>
+                <td style={{ ...td, width: colWidths.name }}>
                   <Cell value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
                 </td>
-                <td style={td}>
-                  <Cell value={task.start} type="date" onChange={v => onUpdate(task.id, { start: v })} style={{ width: 120 }} />
+                <td style={{ ...td, width: colWidths.start }}>
+                  <Cell value={task.start} type="date" onChange={v => onUpdate(task.id, { start: v })} />
                 </td>
-                <td style={td}>
-                  <Cell value={task.end} type="date" min={task.start} onChange={v => onUpdate(task.id, { end: v })} style={{ width: 120 }} />
+                <td style={{ ...td, width: colWidths.end }}>
+                  <Cell value={task.end} type="date" min={task.start} onChange={v => onUpdate(task.id, { end: v })} />
                 </td>
-                <td style={{ ...td, color: 'var(--gx-text-muted)', padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                <td style={{ ...td, width: colWidths.dur, color: 'var(--gx-text-muted)', padding: '2px 8px', whiteSpace: 'nowrap' }}>
                   {duration(task.start, task.end)}
                 </td>
-                <td style={td}>
+                <td style={{ ...td, width: colWidths.category }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: dot, flexShrink: 0 }} />
                     <Cell value={task.category || ''} onChange={v => onUpdate(task.id, { category: v })} />
                   </div>
                 </td>
-                <td style={td}>
+                <td style={{ ...td, width: colWidths.progress }}>
                   <Cell value={task.progress ?? 0} type="number" min="0"
                     onChange={v => onUpdate(task.id, { progress: Math.min(100, Math.max(0, Number(v))) })}
-                    style={{ width: 48, textAlign: 'right' }} />
+                    style={{ textAlign: 'right' }} />
                 </td>
-                <td style={{ ...td, maxWidth: 140, position: 'relative' }}>
+                <td style={{ ...td, width: colWidths.deps }}>
                   <div
                     onClick={() => setOpenDepsId(openDepsId === task.id ? null : task.id)}
                     style={{ cursor: 'pointer', display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 24, alignItems: 'center', padding: '2px 4px' }}
@@ -150,7 +208,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                     <span style={{ fontSize: 10, color: 'var(--gx-accent)', marginLeft: 2 }}>✎</span>
                   </div>
                 </td>
-                <td style={{ ...td, whiteSpace: 'nowrap', padding: '2px 6px' }}>
+                <td style={{ ...td, width: 72, whiteSpace: 'nowrap', padding: '2px 6px' }}>
                   <button onClick={() => onMove(task.id, -1)} disabled={idx === 0}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--gx-text-muted)', fontSize: 13 }} title="Move up">↑</button>
                   <button onClick={() => onMove(task.id, 1)} disabled={idx === tasks.length - 1}
