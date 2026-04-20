@@ -86,7 +86,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     setCategoryColors(next)
   }
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
-  const [tableHeight, setTableHeight] = useState(240)
+  const [tableHeight, setTableHeight] = useState(() => {
+    try { return parseInt(localStorage.getItem('gantt-tableHeight'), 10) || 240 } catch { return 240 }
+  })
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
   const ganttScrollRef = useRef()
@@ -283,12 +285,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   function startTableResize(e) {
     const startY = e.clientY
     const startH = tableHeight
+    let lastH = startH
     function onMove(ev) {
-      setTableHeight(Math.max(80, Math.min(600, startH - (ev.clientY - startY))))
+      lastH = Math.max(80, Math.min(600, startH - (ev.clientY - startY)))
+      setTableHeight(lastH)
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      try { localStorage.setItem('gantt-tableHeight', lastH) } catch {}
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
