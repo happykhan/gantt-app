@@ -69,6 +69,8 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
   const [labelWidth, setLabelWidth] = useState(LABEL_W)
+  const [inlineEditId, setInlineEditId] = useState(null)
+  const [inlineEditVal, setInlineEditVal] = useState('')
 
   const ROW_H = rowHeight
   const BAR_H = Math.max(16, Math.round(ROW_H * 0.577))
@@ -344,27 +346,48 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
           const progressW = w * ((task.progress ?? 0) / 100)
 
+          const isInlineEditing = inlineEditId === task.id
           return (
             <div key={task.id}
               onTouchStart={ev => onTouchStart(ev, task)}
-              onMouseDown={ev => onMouseDown(ev, task)}
+              onMouseDown={ev => isInlineEditing ? undefined : onMouseDown(ev, task)}
+              onDoubleClick={ev => {
+                ev.stopPropagation()
+                setInlineEditId(task.id)
+                setInlineEditVal(task.name)
+              }}
               style={{
                 position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
-                borderRadius: 4, background: fill, cursor: isDragging ? 'grabbing' : 'grab',
+                borderRadius: 4, background: fill, cursor: isInlineEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
                 boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.25)' : '0 1px 2px rgba(0,0,0,0.12)',
-                zIndex: isDragging ? 10 : 1, touchAction: 'none',
+                zIndex: isInlineEditing ? 20 : isDragging ? 10 : 1, touchAction: 'none',
                 display: 'flex', alignItems: 'center', overflow: 'hidden',
               }}
             >
               {progressW > 0 && <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.18)', borderRadius: '4px 0 0 4px' }} />}
-              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
-              {showLabelsInBars && (
-                <span style={{ flex: 1, fontSize: barFontSize, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
-                  {w > 40 ? task.name : ''}
-                </span>
+              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: isInlineEditing ? 'text' : 'ew-resize' }} />
+              {isInlineEditing ? (
+                <input
+                  autoFocus
+                  value={inlineEditVal}
+                  onChange={e => setInlineEditVal(e.target.value)}
+                  onBlur={() => { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }
+                    if (e.key === 'Escape') { setInlineEditId(null) }
+                    e.stopPropagation()
+                  }}
+                  style={{ flex: 1, fontSize: barFontSize, fontWeight: 600, color: textCol, background: 'transparent', border: 'none', outline: '2px solid rgba(255,255,255,0.6)', borderRadius: 2, padding: '0 4px', fontFamily: chartFont || 'inherit', textAlign: 'center', minWidth: 0 }}
+                />
+              ) : (
+                showLabelsInBars && (
+                  <span style={{ flex: 1, fontSize: barFontSize, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
+                    {w > 40 ? task.name : ''}
+                  </span>
+                )
               )}
-              {!showLabelsInBars && <div style={{ flex: 1 }} />}
-              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
+              {!showLabelsInBars && !isInlineEditing && <div style={{ flex: 1 }} />}
+              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: isInlineEditing ? 'text' : 'ew-resize' }} />
             </div>
           )
         })}
@@ -396,6 +419,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <div
                 key={task.id}
                 onClick={() => onTaskClick?.(task.id)}
+                onDoubleClick={() => { setInlineEditId(task.id); setInlineEditVal(task.name) }}
                 style={{
                   height: ROW_H, flexShrink: 0,
                   display: 'flex', alignItems: 'center',
@@ -407,7 +431,22 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)',
                 }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+                {inlineEditId === task.id ? (
+                  <input
+                    autoFocus
+                    value={inlineEditVal}
+                    onChange={e => setInlineEditVal(e.target.value)}
+                    onBlur={() => { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }
+                      if (e.key === 'Escape') setInlineEditId(null)
+                      e.stopPropagation()
+                    }}
+                    style={{ flex: 1, fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)', background: 'var(--gx-surface)', border: '1px solid var(--gx-accent)', borderRadius: 3, padding: '2px 4px', outline: 'none', fontFamily: 'inherit', minWidth: 0 }}
+                  />
+                ) : (
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+                )}
               </div>
             ))}
             {/* Resize handle */}

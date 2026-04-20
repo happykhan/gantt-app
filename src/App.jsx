@@ -10,6 +10,7 @@ import { generateSampleData } from './utils/parseInput'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
+function addDays(str, n) { const d = new Date(str + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().substring(0, 10) }
 
 const LS_KEY = 'gantt-app-v1'
 
@@ -93,12 +94,33 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
 
-  // Delete key shortcut
+  // Keyboard shortcuts for selected task
   useEffect(() => {
     function onKeyDown(e) {
       if (!selectedId) return
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      if (e.key === 'Delete' || e.key === 'Backspace') handleDelete(selectedId)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        handleDelete(selectedId)
+      } else if (e.key === 'Escape') {
+        setSelectedId(null)
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const days = e.shiftKey ? 7 : 1
+        const delta = e.key === 'ArrowLeft' ? -days : days
+        setTasks(prev => prev.map(t => t.id === selectedId
+          ? { ...t, start: addDays(t.start, delta), end: addDays(t.end, delta) }
+          : t))
+        e.preventDefault()
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        setTasks(prev => {
+          const idx = prev.findIndex(t => t.id === selectedId)
+          const next = idx + (e.key === 'ArrowUp' ? -1 : 1)
+          if (next < 0 || next >= prev.length) return prev
+          const arr = [...prev];
+          [arr[idx], arr[next]] = [arr[next], arr[idx]]
+          return arr
+        })
+        e.preventDefault()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
