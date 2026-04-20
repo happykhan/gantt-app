@@ -116,14 +116,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const ganttScrollRef = useRef()
   const undoStack = useRef([])
 
+  const [canUndo, setCanUndo] = useState(false)
   function pushUndo() {
     undoStack.current = [...undoStack.current.slice(-29), tasks]
+    setCanUndo(true)
   }
   function undo() {
     if (!undoStack.current.length) return
     const prev = undoStack.current[undoStack.current.length - 1]
     undoStack.current = undoStack.current.slice(0, -1)
     setTasks(prev)
+    setCanUndo(undoStack.current.length > 0)
   }
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
@@ -397,6 +400,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }} title="Current zoom level">{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
           className="gx-btn gx-btn-secondary" title="Zoom in" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
+        <button onClick={undo} disabled={!canUndo}
+          className="gx-btn gx-btn-secondary" title="Undo (Ctrl+Z)" style={{ fontSize: 13, padding: '1px 8px' }}>↩</button>
         <div style={{ flex: 1 }} />
 
         {isMobile ? (
@@ -456,6 +461,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               borderRadius: 10, boxShadow: '0 6px 28px rgba(0,0,0,0.22)',
               minWidth: 200, padding: '6px 0', marginTop: 4,
             }}>
+              <button onClick={() => { undo(); setShowMore(false) }} disabled={!canUndo}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: canUndo ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: canUndo ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+                ↩ Undo
+              </button>
               {[
                 [labelMode === 'inline' ? 'Classic layout' : 'Inline layout', () => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')],
                 [showTable ? 'Hide table' : 'Show table', () => setShowTable(s => !s)],
