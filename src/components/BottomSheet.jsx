@@ -71,7 +71,6 @@ export default function BottomSheet({ task, categories, onUpdate, onDelete, onCl
               onChange={e => setName(e.target.value)}
               style={inputStyle}
               placeholder="Enter task name"
-              autoFocus
             />
           </div>
 
