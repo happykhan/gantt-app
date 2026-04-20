@@ -60,10 +60,11 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors = {}, onColorChange, onTaskChange, onTaskClick }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
   const scrollRef = useRef(null)
   const dragRef = useRef(null)
   const [dragState, setDragState] = useState(null) // { taskId, dxDays }
+  const [editingCat, setEditingCat] = useState(null) // category name being renamed
 
   const colPx = COL_PX[viewMode] || 80
 
@@ -94,36 +95,17 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
     return (cat && categoryColors[cat]) || DEFAULT_COLORS[Math.max(0, idx) % DEFAULT_COLORS.length]
   }
 
-  // ── touch drag ──────────────────────────────────────────────────────────────
-  const onTouchStart = useCallback((e, task) => {
-    const touch = e.touches[0]
-    const rect  = e.currentTarget.getBoundingClientRect()
-    const localX = touch.clientX - rect.left
-    let type = 'move'
-    if (localX <= EDGE_PX) type = 'resize-start'
-    else if (localX >= rect.width - EDGE_PX) type = 'resize-end'
+  // ── shared drag commit ───────────────────────────────────────────────────────
+  const TAP_THRESHOLD_PX = 8
 
-    dragRef.current = { taskId: task.id, type, startClientX: touch.clientX,
-      origStart: task.start, origEnd: task.end, pxPerDay }
-    setDragState({ taskId: task.id, dxDays: 0 })
-    e.stopPropagation()
-  }, [pxPerDay])
-
-  const onTouchMove = useCallback((e) => {
-    if (!dragRef.current) return
-    const dxDays = Math.round((e.touches[0].clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
-    setDragState({ taskId: dragRef.current.taskId, dxDays })
-    e.preventDefault()
-  }, [])
-
-  const onTouchEnd = useCallback((e) => {
+  function commitDrag(clientX) {
     if (!dragRef.current) return
     const { taskId, type, origStart, origEnd, startClientX, pxPerDay: ppd } = dragRef.current
-    const dxDays = Math.round(((e.changedTouches[0]?.clientX ?? startClientX) - startClientX) / ppd)
-
-    if (Math.abs(dxDays) < 1) {
+    const dxPx = clientX - startClientX
+    if (Math.abs(dxPx) < TAP_THRESHOLD_PX) {
       onTaskClick?.(taskId)
     } else {
+      const dxDays = Math.round(dxPx / ppd)
       let newStart = origStart, newEnd = origEnd
       if (type === 'move') {
         newStart = addDays(origStart, dxDays)
@@ -137,59 +119,109 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
       }
       onTaskChange?.(taskId, { start: newStart, end: newEnd })
     }
-
     dragRef.current = null
     setDragState(null)
-  }, [onTaskClick, onTaskChange])
+  }
+
+  function initDrag(clientX, rect, task) {
+    const localX = clientX - rect.left
+    let type = 'move'
+    if (localX <= EDGE_PX) type = 'resize-start'
+    else if (localX >= rect.width - EDGE_PX) type = 'resize-end'
+    dragRef.current = { taskId: task.id, type, startClientX: clientX,
+      origStart: task.start, origEnd: task.end, pxPerDay }
+    setDragState({ taskId: task.id, dxDays: 0 })
+  }
+
+  // ── touch drag ──────────────────────────────────────────────────────────────
+  const onTouchStart = useCallback((e, task) => {
+    const touch = e.touches[0]
+    initDrag(touch.clientX, e.currentTarget.getBoundingClientRect(), task)
+    e.stopPropagation()
+  }, [pxPerDay])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onTouchMove = useCallback((e) => {
+    if (!dragRef.current) return
+    const dxDays = Math.round((e.touches[0].clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
+    setDragState({ taskId: dragRef.current.taskId, dxDays })
+    e.preventDefault()
+  }, [])
+
+  const onTouchEnd = useCallback((e) => {
+    e.preventDefault() // prevent synthetic mouse/click events after touch
+    commitDrag(e.changedTouches[0]?.clientX ?? dragRef.current?.startClientX ?? 0)
+  }, [onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── mouse drag ───────────────────────────────────────────────────────────────
+  const onMouseDown = useCallback((e, task) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    initDrag(e.clientX, e.currentTarget.getBoundingClientRect(), task)
+
+    function onMouseMove(ev) {
+      if (!dragRef.current) return
+      const dxDays = Math.round((ev.clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
+      setDragState({ taskId: dragRef.current.taskId, dxDays })
+    }
+    function onMouseUp(ev) {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      commitDrag(ev.clientX)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [pxPerDay, onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!tasks.length) return <div style={{ padding: 24, color: 'var(--gx-text-muted)' }}>No tasks yet — use the + button to add one.</div>
 
   const todayStr = toStr(new Date())
   const todayX = dateToX(todayStr, rangeStartStr, pxPerDay)
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
-      {/* Legend */}
-      {categories.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 12px', borderBottom: '1px solid var(--gx-border)', flexShrink: 0, alignItems: 'center' }}>
-          {categories.map(cat => {
-            const fill = getCatColor(cat)
-            return (
-              <label key={cat} title="Click to change colour" style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: 'var(--gx-text-muted)' }}>
-                <span style={{ width: 12, height: 12, borderRadius: 2, background: fill, flexShrink: 0, display: 'inline-block' }} />
-                <input type="color" value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
-                  style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
-                {cat}
-              </label>
-            )
-          })}
-          <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', opacity: 0.5 }}>tap label to change colour</span>
-        </div>
-      )}
+  const legend = categories.length > 0 && (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 12px', borderTop: '1px solid var(--gx-border)', alignItems: 'center', background: 'var(--gx-surface)', position: 'sticky', left: 0, minWidth: 'max-content' }}>
+      {categories.map(cat => {
+        const fill = getCatColor(cat)
+        const isEditing = editingCat === cat
+        return (
+          <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            {/* colour swatch + picker */}
+            <label title="Change colour" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
+              <span style={{ width: 14, height: 14, borderRadius: 3, background: fill, flexShrink: 0, display: 'inline-block', border: '1px solid rgba(0,0,0,0.15)' }} />
+              <input type="color" value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
+                style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
+            </label>
+            {/* name — tap to rename */}
+            {isEditing ? (
+              <input
+                autoFocus
+                defaultValue={cat}
+                style={{ fontSize: 12, padding: '1px 4px', border: '1px solid var(--gx-accent)', borderRadius: 3, width: 80, background: 'var(--gx-bg)', color: 'var(--gx-text)' }}
+                onBlur={e => { onRenameCategory?.(cat, e.target.value); setEditingCat(null) }}
+                onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingCat(null) }}
+              />
+            ) : (
+              <span
+                onClick={() => setEditingCat(cat)}
+                title="Tap to rename"
+                style={{ fontSize: 12, color: 'var(--gx-text-muted)', cursor: 'text', borderBottom: '1px dashed var(--gx-border)' }}
+              >{cat}</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 
+  return (
+    <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
       {/* Chart */}
       <div
-        ref={scrollRef}
+        ref={node => { scrollRef.current = node; if (scrollExportRef) scrollExportRef.current = node }}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
       >
-        {/* Sticky label column */}
-        <div style={{ width: LABEL_W, minWidth: LABEL_W, flexShrink: 0, position: 'sticky', left: 0, zIndex: 3, background: 'var(--gx-surface)', borderRight: '2px solid var(--gx-border)' }}>
-          <div style={{ height: HEADER_H, display: 'flex', alignItems: 'center', paddingLeft: 10, fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '2px solid var(--gx-border)' }}>
-            Task
-          </div>
-          {tasks.map((task, i) => (
-            <div key={task.id} onClick={() => onTaskClick?.(task.id)}
-              style={{ height: ROW_H, display: 'flex', alignItems: 'center', paddingLeft: 10, paddingRight: 6, borderBottom: '1px solid var(--gx-border)', fontSize: 12, fontWeight: 500, color: 'var(--gx-text)', cursor: 'pointer', overflow: 'hidden', background: i % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }}
-              title={task.name}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: getCatColor(task.category), flexShrink: 0, marginRight: 6 }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Scrollable chart area */}
         <div style={{ position: 'relative', minWidth: totalW, flexShrink: 0 }}>
           {/* Column headers */}
@@ -203,6 +235,48 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
 
           {/* Rows + bars */}
           <div style={{ position: 'relative', width: totalW, height: tasks.length * ROW_H }}>
+            {/* Dependency arrows */}
+            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}>
+              <defs>
+                <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L6,3 z" fill="rgba(99,102,241,0.7)" />
+                </marker>
+              </defs>
+              {tasks.map((task, toIdx) => {
+                if (!task.dependencies) return null
+                const depIds = task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
+                return depIds.map(depId => {
+                  const fromIdx = tasks.findIndex(t => t.id === depId)
+                  if (fromIdx < 0) return null
+                  const fromTask = tasks[fromIdx]
+                  const isDraggingFrom = dragState?.taskId === fromTask.id
+                  const isDraggingTo = dragState?.taskId === task.id
+                  let fs = fromTask.start, fe = fromTask.end
+                  let ts = task.start
+                  if (isDraggingFrom && dragRef.current) {
+                    const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
+                    if (type === 'move') { fs = addDays(origStart, d); fe = addDays(origEnd, d) }
+                    else if (type === 'resize-end') { fe = addDays(origEnd, d) }
+                  }
+                  if (isDraggingTo && dragRef.current) {
+                    const d = dragState.dxDays; const { type, origStart } = dragRef.current
+                    if (type === 'move' || type === 'resize-start') ts = addDays(origStart, d)
+                  }
+                  const x1 = dateToX(fe, rangeStartStr, pxPerDay)
+                  const y1 = fromIdx * ROW_H + ROW_H / 2
+                  const x2 = dateToX(ts, rangeStartStr, pxPerDay)
+                  const y2 = toIdx * ROW_H + ROW_H / 2
+                  const mx = x1 + Math.min(20, (x2 - x1) / 2)
+                  return (
+                    <path key={`${depId}-${task.id}`}
+                      d={`M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`}
+                      fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5"
+                      strokeDasharray="4 2" markerEnd="url(#dep-arrow)"
+                    />
+                  )
+                })
+              })}
+            </svg>
             {/* Grid lines */}
             {columns.map((_, i) => (
               <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: i * colPx, width: 1, background: 'var(--gx-border)' }} />
@@ -235,7 +309,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
               return (
                 <div key={task.id}
                   onTouchStart={ev => onTouchStart(ev, task)}
-                  onClick={() => onTaskClick?.(task.id)}
+                  onMouseDown={ev => onMouseDown(ev, task)}
                   style={{
                     position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
                     borderRadius: 4, background: fill, cursor: isDragging ? 'grabbing' : 'grab',
@@ -255,6 +329,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
             })}
           </div>
         </div>
+        {legend}
       </div>
     </div>
   )
