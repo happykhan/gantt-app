@@ -157,8 +157,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       el.style.overflow = 'visible'
       el.style.overflowX = 'visible'
       el.style.overflowY = 'visible'
-      el.style.height = 'auto'
       el.style.maxHeight = 'none'
+      // Only clear height when it's not an explicit pixel value.
+      // Pixel heights on the bar container / individual bars are load-bearing —
+      // clearing them collapses absolutely-positioned children and hides the bars.
+      const inlineH = el.style.height
+      if (!inlineH || inlineH === 'auto' || inlineH.endsWith('%')) {
+        el.style.height = 'auto'
+      }
     })
 
     // Measure full size after expanding
