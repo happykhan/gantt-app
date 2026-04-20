@@ -268,14 +268,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                   const y2 = toIdx * ROW_H + ROW_H / 2
                   const MARGIN = 18
                   const EXIT = 12  // px to exit right of from-task before turning
-                  // Normal case (x2 ahead of x1): put the vertical segment at x2-2,
-                  // i.e., just before the destination bar's left edge. This keeps
-                  // the path from crossing intermediate task bars in the chart.
-                  // Overlap case (x2 behind x1+MARGIN): loop around the destination
-                  // bar, passing above or below depending on its row position.
+                  // Standard Gantt elbow: exit right by EXIT px, drop to destination
+                  // row, then go right into the destination bar's left edge.
+                  // Overlap case (x2 ≤ x1+EXIT): loop around the destination bar,
+                  // passing above or below depending on row position.
                   let arrowPath
                   if (x2 > x1 + EXIT) {
-                    arrowPath = `M${x1},${y1} H${x2-2} V${y2} H${x2}`
+                    arrowPath = `M${x1},${y1} H${x1+EXIT} V${y2} H${x2}`
                   } else {
                     const goAbove = toIdx <= fromIdx
                     const loopY = goAbove
