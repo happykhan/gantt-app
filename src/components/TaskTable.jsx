@@ -73,7 +73,7 @@ function Cell({ value, onChange, type = 'text', min, style }) {
   )
 }
 
-export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove }) {
+export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240 }) {
   const [openDepsId, setOpenDepsId] = useState(null)
 
   function getDepNames(task) {
@@ -89,7 +89,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
   const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle' }
 
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 240, flexShrink: 0 }}>
+    <div style={{ overflowX: 'auto', overflowY: 'auto', height: tableHeight, flexShrink: 0 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>

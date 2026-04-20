@@ -55,6 +55,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const DENSITY = { compact: [34, 10], normal: [52, 11], spacious: [68, 13] }
   const [rowHeight, barFontSize] = DENSITY[displayDensity] || DENSITY.normal
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
+  const [tableHeight, setTableHeight] = useState(240)
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
   const ganttScrollRef = useRef()
@@ -226,6 +227,21 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   async function exportPNG() { await captureExport(toPng, 'gantt.png') }
   async function exportSVG() { await captureExport(toSvg, 'gantt.svg') }
 
+  function startTableResize(e) {
+    const startY = e.clientY
+    const startH = tableHeight
+    function onMove(ev) {
+      setTableHeight(Math.max(80, Math.min(600, startH - (ev.clientY - startY))))
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    e.preventDefault()
+  }
+
   const ZOOM_STEP = 0.25, ZOOM_MIN = 0.5, ZOOM_MAX = 2
 
   return (
@@ -316,9 +332,21 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             }} title="Add task">+</button>
         </main>
 
-        {/* Task table (collapsible) */}
+        {/* Task table (collapsible + resizable) */}
         {showTable && (
-          <div style={{ borderTop: '2px solid var(--gx-border)', flexShrink: 0 }}>
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+            {/* Resize handle */}
+            <div
+              onMouseDown={startTableResize}
+              style={{
+                height: 6, cursor: 'row-resize', flexShrink: 0,
+                background: 'var(--gx-border)',
+                borderTop: '1px solid var(--gx-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <div style={{ width: 32, height: 2, borderRadius: 1, background: 'var(--gx-text-muted)', opacity: 0.4 }} />
+            </div>
             <TaskTable
               tasks={tasks}
               categories={categories}
@@ -326,6 +354,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               onDelete={handleDelete}
               onAdd={handleAddNew}
               onMove={handleMoveTask}
+              tableHeight={tableHeight}
             />
           </div>
         )}
