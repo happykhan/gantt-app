@@ -472,11 +472,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             {/* Font size */}
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Font size</div>
-              <select value={chartFontSize} onChange={e => setChartFontSize(Number(e.target.value))} style={selectStyle}>
-                {[9, 10, 11, 12, 13, 14].map(s => (
-                  <option key={s} value={s}>{s}px</option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => setChartFontSize(s => Math.max(6, s - 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>−</button>
+                <input
+                  type="number" min={6} max={32}
+                  value={chartFontSize}
+                  onChange={e => { const v = parseInt(e.target.value, 10); if (v >= 6 && v <= 32) setChartFontSize(v) }}
+                  style={{ ...selectStyle, width: 64, textAlign: 'center', padding: '8px 6px' }}
+                />
+                <button onClick={() => setChartFontSize(s => Math.min(32, s + 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>+</button>
+                <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>px</span>
+              </div>
             </div>
 
             {/* Colour palette */}
