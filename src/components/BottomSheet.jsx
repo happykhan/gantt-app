@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 
 const CAT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
 
-export default function BottomSheet({ task, categories, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
+export default function BottomSheet({ task, tasks = [], categories, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
   const [end, setEnd] = useState(task?.end || '')
   const [category, setCategory] = useState(task?.category || '')
   const [progress, setProgress] = useState(task?.progress ?? 0)
+  const [deps, setDeps] = useState(() =>
+    new Set(task?.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
+  )
 
   useEffect(() => {
     if (task) {
@@ -16,13 +19,14 @@ export default function BottomSheet({ task, categories, onUpdate, onDelete, onCl
       setEnd(task.end)
       setCategory(task.category || '')
       setProgress(task.progress ?? 0)
+      setDeps(new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []))
     }
   }, [task?.id])
 
   if (!task) return null
 
   function save() {
-    onUpdate(task.id, { name, start, end: end >= start ? end : start, category, progress })
+    onUpdate(task.id, { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', ') })
     onClose()
   }
 
@@ -116,6 +120,30 @@ export default function BottomSheet({ task, categories, onUpdate, onDelete, onCl
               style={{ width: '100%', accentColor: 'var(--gx-accent)' }}
             />
           </div>
+
+          {/* Depends on */}
+          {tasks.filter(t => t.id !== task.id).length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Depends on</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', padding: '4px 0' }}>
+                {tasks.filter(t => t.id !== task.id).map(t => (
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={deps.has(t.id)}
+                      onChange={e => setDeps(prev => {
+                        const next = new Set(prev)
+                        e.target.checked ? next.add(t.id) : next.delete(t.id)
+                        return next
+                      })}
+                      style={{ accentColor: 'var(--gx-accent)', width: 18, height: 18, flexShrink: 0 }}
+                    />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Reorder */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

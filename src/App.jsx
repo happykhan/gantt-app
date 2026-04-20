@@ -274,6 +274,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       {selectedTask && (
         <BottomSheet
           task={selectedTask}
+          tasks={tasks}
           categories={categories}
           onUpdate={handleTaskChange}
           onDelete={handleDelete}

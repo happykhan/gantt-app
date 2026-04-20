@@ -271,7 +271,8 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                   const x2end = dateToX(te, rangeStartStr, pxPerDay)
 
                   const MARGIN = 18
-                  const APPROACH = 10  // approach dest bar from this many px left
+                  const APPROACH = 10
+                  const STUB = 6
 
                   let arrowPath
                   if (x2 >= x1) {
@@ -279,18 +280,19 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                     const ex = Math.min(MARGIN, Math.max(2, (x2 - x1) / 2))
                     arrowPath = `M${x1},${y1} H${x1+ex} V${y2} H${x2}`
                   } else {
-                    // Overlap: exit to the right of BOTH bars so the drop never
-                    // crosses the destination bar, then approach from the left.
-                    const rightExit = Math.max(x1, x2end) + MARGIN
-                    const leftApproach = x2 - APPROACH
+                    // Overlap: route through the inter-row seam so the line passes
+                    // above/below the bar rather than through it or looping far right
+                    const leftApproach = Math.max(2, x2 - APPROACH)
                     if (toIdx > fromIdx) {
-                      // Dest is below predecessor: drop past dest bar bottom, rise from left
-                      const loopY = toIdx * ROW_H + BAR_Y + BAR_H + 6
-                      arrowPath = `M${x1},${y1} H${rightExit} V${loopY} H${leftApproach} V${y2} H${x2}`
+                      // Dest below: exit right stub, drop to seam below predecessor row,
+                      // cut left above dest bar, drop into dest from the left
+                      const seam = fromIdx * ROW_H + ROW_H - 1
+                      arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
                     } else {
-                      // Dest is above predecessor: rise past dest bar top, drop from left
-                      const loopY = toIdx * ROW_H + BAR_Y - 6
-                      arrowPath = `M${x1},${y1} H${rightExit} V${loopY} H${leftApproach} V${y2} H${x2}`
+                      // Dest above: exit right stub, rise to seam below dest row,
+                      // cut left, rise into dest from the left
+                      const seam = (toIdx + 1) * ROW_H + 1
+                      arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
                     }
                   }
                   return (
