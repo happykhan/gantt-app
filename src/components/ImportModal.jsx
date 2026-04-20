@@ -99,6 +99,38 @@ export default function ImportModal({ onLoad, onClose }) {
         )}
 
         {error && <div className="gx-alert gx-alert-error" style={{ marginTop: 12 }}>{error}</div>}
+
+        {/* Column reference */}
+        <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--gx-bg-alt)', borderRadius: 8, border: '1px solid var(--gx-border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Supported columns</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                {['Column', 'Required?', 'Example'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '3px 6px 6px 0', color: 'var(--gx-text-muted)', fontWeight: 600, borderBottom: '1px solid var(--gx-border)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ['Task name / Name', 'Yes', 'WP1 Study design'],
+                ['Start / Start date', 'Yes', '2024-01-15  or  15/01/2024'],
+                ['End / End date', 'Yes', '2024-03-31'],
+                ['Category / WP', 'No', 'WP1'],
+                ['Progress / %', 'No', '50'],
+              ].map(([col, req, ex]) => (
+                <tr key={col}>
+                  <td style={{ padding: '5px 6px 5px 0', fontFamily: 'monospace', color: 'var(--gx-text)' }}>{col}</td>
+                  <td style={{ padding: '5px 6px', color: req === 'Yes' ? 'var(--gx-accent)' : 'var(--gx-text-muted)' }}>{req}</td>
+                  <td style={{ padding: '5px 0', color: 'var(--gx-text-muted)', fontStyle: 'italic' }}>{ex}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>
+            Column names are matched flexibly. Copy directly from Excel or Google Sheets and paste into the text area.
+          </p>
+        </div>
       </div>
     </>
   )

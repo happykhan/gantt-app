@@ -352,8 +352,32 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
             else                              { e = addDays(origEnd,   d); if (e <= s) e = addDays(s, 1) }
           }
           const x = dateToX(s, rangeStartStr, pxPerDay)
+          const fill = task.color || getCatColor(task.category)
+          const isMilestone = task.start === task.end
+
+          // ── Milestone: diamond marker ─────────────────────────────────────────
+          if (isMilestone) {
+            const sz = BAR_H
+            return (
+              <div key={task.id}
+                onTouchStart={ev => onTouchStart(ev, task)}
+                onMouseDown={ev => onMouseDown(ev, task)}
+                onClick={() => onTaskClick?.(task.id)}
+                title={task.name}
+                style={{
+                  position: 'absolute',
+                  left: x - sz / 2, top: rowIdx * ROW_H + BAR_Y,
+                  width: sz, height: sz,
+                  background: fill,
+                  transform: 'rotate(45deg)',
+                  cursor: 'pointer', zIndex: 1, touchAction: 'none',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                }}
+              />
+            )
+          }
+
           const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
-          const fill = getCatColor(task.category)
           const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
           const progressW = w * ((task.progress ?? 0) / 100)
 
@@ -375,7 +399,12 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 display: 'flex', alignItems: 'center', overflow: 'hidden',
               }}
             >
-              {progressW > 0 && <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.18)', borderRadius: '4px 0 0 4px' }} />}
+              {progressW > 0 && (
+                <>
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.26)', borderRadius: '4px 0 0 4px' }} />
+                  <div style={{ position: 'absolute', top: '15%', left: progressW - 2, width: 2, height: '70%', background: 'rgba(255,255,255,0.6)', borderRadius: 1 }} />
+                </>
+              )}
               <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: isInlineEditing ? 'text' : 'ew-resize' }} />
               {isInlineEditing ? (
                 <input
@@ -456,7 +485,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                     style={{ flex: 1, fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)', background: 'var(--gx-surface)', border: '1px solid var(--gx-accent)', borderRadius: 3, padding: '2px 4px', outline: 'none', fontFamily: 'inherit', minWidth: 0 }}
                   />
                 ) : (
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {task.start === task.end && <span style={{ marginRight: 4, fontSize: barFontSize, opacity: 0.7 }}>◆</span>}
+                    {task.name}
+                  </span>
                 )}
               </div>
             ))}

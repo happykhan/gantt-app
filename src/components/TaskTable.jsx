@@ -209,7 +209,16 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
               <tr key={task.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }}>
                 <td style={{ ...td, padding: '2px 8px', color: 'var(--gx-text-muted)', fontSize: 11, width: 32 }}>{idx + 1}</td>
                 <td style={{ ...td, width: colWidths.name }}>
-                  <Cell value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <label title={task.color ? 'Custom colour — click to change, right-click to reset' : 'Click to set a custom task colour'} style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', lineHeight: 0 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: task.color || dot, display: 'block', border: task.color ? '1.5px solid rgba(0,0,0,0.25)' : '1px dashed rgba(128,128,128,0.5)', flexShrink: 0 }} />
+                      <input type="color" value={task.color || dot}
+                        onChange={e => onUpdate(task.id, { color: e.target.value })}
+                        onContextMenu={e => { e.preventDefault(); onUpdate(task.id, { color: undefined }) }}
+                        style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
+                    </label>
+                    <Cell value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
+                  </div>
                 </td>
                 <td style={{ ...td, width: colWidths.start }}>
                   <DateCell value={task.start} onChange={v => onUpdate(task.id, { start: v })} />

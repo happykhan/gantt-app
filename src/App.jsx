@@ -118,6 +118,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
   const ganttScrollRef = useRef()
+  const undoStack = useRef([])
+
+  function pushUndo() {
+    undoStack.current = [...undoStack.current.slice(-29), tasks]
+  }
+  function undo() {
+    if (!undoStack.current.length) return
+    const prev = undoStack.current[undoStack.current.length - 1]
+    undoStack.current = undoStack.current.slice(0, -1)
+    setTasks(prev)
+  }
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
@@ -125,8 +136,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   // Keyboard shortcuts for selected task
   useEffect(() => {
     function onKeyDown(e) {
-      if (!selectedId) return
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        undo(); e.preventDefault(); return
+      }
+      if (!selectedId) return
       if (e.key === 'Delete' || e.key === 'Backspace') {
         handleDelete(selectedId)
       } else if (e.key === 'Escape') {
@@ -171,6 +185,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
   }
   function handleDelete(id) {
+    pushUndo()
     setTasks(prev => {
       const next = prev.filter(t => t.id !== id)
       return next.map(t => ({
@@ -183,6 +198,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     if (selectedId === id) setSelectedId(null)
   }
   function handleMoveTask(id, dir) {
+    pushUndo()
     setTasks(prev => {
       const idx = prev.findIndex(t => t.id === id)
       const next = idx + dir
@@ -193,6 +209,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     })
   }
   function handleAddNew() {
+    pushUndo()
     const last = tasks[tasks.length - 1]
     const start = last?.end || new Date().toISOString().substring(0, 10)
     const end = new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
@@ -201,9 +218,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     setSelectedId(newTask.id)
   }
   function handleImport(newTasks) {
+    pushUndo()
     setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
   }
   function handleClear() {
+    pushUndo()
     setTasks([])
     setChartTitle('')
     setCategoryColors({})
@@ -497,27 +516,56 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             )}
           </div>
 
-          <div ref={ganttAreaRef} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-            <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${(100/zoom).toFixed(1)}%`, height: `${(100/zoom).toFixed(1)}%` }}>
-              <CustomGantt
-                tasks={tasks}
-                viewMode={viewMode}
-                labelMode={labelMode}
-                rowHeight={rowHeight}
-                barFontSize={barFontSize}
-                chartFont={chartFont}
-                categoryColors={categoryColors}
-                onColorChange={handleColorChange}
-                onTaskChange={handleTaskChange}
-                onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
-                onRenameCategory={handleRenameCategory}
-                exportRef={ganttExportRef}
-                scrollExportRef={ganttScrollRef}
-              />
+          {tasks.length === 0 ? (
+            /* ── Empty state ──────────────────────────────────────────────── */
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', gap: 16, textAlign: 'center' }}>
+              <div style={{ fontSize: 48, lineHeight: 1, marginBottom: 4 }}>📊</div>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--gx-text)' }}>Build your Gantt chart</h2>
+              <p style={{ margin: 0, fontSize: 15, color: 'var(--gx-text-muted)', maxWidth: 380, lineHeight: 1.6 }}>
+                Create a project timeline for a grant proposal, research plan, or any multi-phase project. Your chart lives in the browser — no account needed.
+              </p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
+                <button onClick={handleAddNew} className="gx-btn gx-btn-primary" style={{ fontSize: 15, padding: '12px 24px' }}>
+                  + Add first task
+                </button>
+                <button onClick={() => {
+                  const { tasks: sample } = { tasks: generateSampleData().map(t => ({ ...t, id: t.id || makeId() })) }
+                  setTasks(sample)
+                }} className="gx-btn gx-btn-secondary" style={{ fontSize: 15, padding: '12px 24px' }}>
+                  Load example
+                </button>
+                <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 15, padding: '12px 24px' }}>
+                  Import CSV / Excel
+                </button>
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--gx-text-muted)' }}>
+                Tip: use the ? button for keyboard shortcuts
+              </p>
             </div>
-          </div>
+          ) : (
+            <div ref={ganttAreaRef} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${(100/zoom).toFixed(1)}%`, height: `${(100/zoom).toFixed(1)}%` }}>
+                <CustomGantt
+                  tasks={tasks}
+                  viewMode={viewMode}
+                  labelMode={labelMode}
+                  rowHeight={rowHeight}
+                  barFontSize={barFontSize}
+                  chartFont={chartFont}
+                  categoryColors={categoryColors}
+                  onColorChange={handleColorChange}
+                  onTaskChange={handleTaskChange}
+                  onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
+                  onRenameCategory={handleRenameCategory}
+                  exportRef={ganttExportRef}
+                  scrollExportRef={ganttScrollRef}
+                />
+              </div>
+            </div>
+          )}
 
           {/* FAB: Add task */}
+          {tasks.length > 0 && (
           <button onClick={handleAddNew}
             style={{
               position: 'absolute', bottom: 20, right: 20,
@@ -527,6 +575,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
             }} title="Add task">+</button>
+          )}
         </main>
 
         {/* Task table (collapsible + resizable) */}

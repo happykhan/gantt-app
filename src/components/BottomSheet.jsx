@@ -19,6 +19,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
   const [end, setEnd] = useState(task?.end || '')
   const [category, setCategory] = useState(task?.category || '')
   const [progress, setProgress] = useState(task?.progress ?? 0)
+  const [taskColor, setTaskColor] = useState(task?.color || '')
   const [deps, setDeps] = useState(() =>
     new Set(task?.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
@@ -31,6 +32,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
       setEnd(task.end)
       setCategory(task.category || '')
       setProgress(task.progress ?? 0)
+      setTaskColor(task.color || '')
       setDeps(new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []))
     }
   }, [task?.id])
@@ -38,7 +40,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
   if (!task) return null
 
   function save() {
-    onUpdate(task.id, { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', ') })
+    onUpdate(task.id, { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', '), color: taskColor || undefined })
     onClose()
   }
 
@@ -149,6 +151,24 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
               onChange={e => setProgress(Number(e.target.value))}
               style={{ width: '100%', accentColor: 'var(--gx-accent)' }}
             />
+          </div>
+
+          {/* Task colour override */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Task colour</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label title="Pick a custom colour for this task" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 28, height: 28, borderRadius: 6, background: taskColor || catColor, border: '2px solid var(--gx-border)', display: 'block', flexShrink: 0 }} />
+                <input type="color" value={taskColor || catColor} onChange={e => setTaskColor(e.target.value)}
+                  style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--gx-text-muted)' }}>{taskColor ? 'Custom' : 'From category'}</span>
+              </label>
+              {taskColor && (
+                <button onClick={() => setTaskColor('')} style={{ fontSize: 12, background: 'none', border: '1px solid var(--gx-border)', borderRadius: 6, padding: '4px 10px', color: 'var(--gx-text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Depends on */}
