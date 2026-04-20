@@ -172,8 +172,26 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const h = outer.scrollHeight
 
     try {
-      const url = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: 2, width: w, height: h })
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+      // Capture at natural size (pixelRatio:1), then scale down so the image
+      // fits an A4 landscape page when pasted into Word at 96dpi (~1122px usable).
+      // Target max width = 1200px — pastes at roughly page width with no manual resize.
+      const MAX_W = 1200
+      const raw = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: 1, width: w, height: h })
+
+      let finalUrl = raw
+      if (w > MAX_W) {
+        const scale = MAX_W / w
+        const img = new Image()
+        img.src = raw
+        await new Promise(r => { img.onload = r })
+        const canvas = document.createElement('canvas')
+        canvas.width = MAX_W
+        canvas.height = Math.round(h * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        finalUrl = canvas.toDataURL('image/png')
+      }
+
+      const a = document.createElement('a'); a.href = finalUrl; a.download = filename; a.click()
     } catch (e) { console.error(e); alert('Export failed — try zooming to 100% first.') }
     finally {
       saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
