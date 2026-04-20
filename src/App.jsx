@@ -31,7 +31,9 @@ function loadInitial() {
 }
 
 function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
-  const [viewMode, setViewMode] = useState(() => window.innerWidth < 768 ? 'Year' : 'Quarter')
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('gantt-viewMode') || (window.innerWidth < 768 ? 'Year' : 'Quarter') } catch { return 'Quarter' }
+  })
   const [labelMode, setLabelMode] = useState(() => {
     try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
   })
@@ -58,6 +60,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
   useEffect(() => {
     try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
+  }, [labelMode])
+  useEffect(() => {
+    try { localStorage.setItem('gantt-viewMode', viewMode) } catch {}
   }, [labelMode])
   useEffect(() => {
     try { localStorage.setItem('gantt-density', displayDensity) } catch {}
