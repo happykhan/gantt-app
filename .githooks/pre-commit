@@ -1,0 +1,11 @@
+#!/bin/sh
+# Auto-bump patch version before each commit
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const parts = pkg.version.split('.').map(Number);
+parts[2] = parts[2] + 1;
+pkg.version = parts.join('.');
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+process.stdout.write('Version bumped to ' + pkg.version + '\n');
+" && git add package.json

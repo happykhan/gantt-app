@@ -39,10 +39,21 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [editingTitle, setEditingTitle] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const [displayDensity, setDisplayDensity] = useState(() => {
+    try { return localStorage.getItem('gantt-density') || 'normal' } catch { return 'normal' }
+  })
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
   }, [labelMode])
+
+  useEffect(() => {
+    try { localStorage.setItem('gantt-density', displayDensity) } catch {}
+  }, [displayDensity])
+
+  const DENSITY = { compact: [34, 10], normal: [52, 11], spacious: [68, 13] }
+  const [rowHeight, barFontSize] = DENSITY[displayDensity] || DENSITY.normal
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
@@ -241,6 +252,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         >
           {labelMode === 'inline' ? 'Classic' : 'Inline'}
         </button>
+        <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Display settings">⚙ Settings</button>
         <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
           {showTable ? '▲ Table' : '▼ Table'}
         </button>
@@ -279,6 +291,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 tasks={tasks}
                 viewMode={viewMode}
                 labelMode={labelMode}
+                rowHeight={rowHeight}
+                barFontSize={barFontSize}
                 categoryColors={categoryColors}
                 onColorChange={handleColorChange}
                 onTaskChange={handleTaskChange}
@@ -335,12 +349,38 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         </>
       )}
 
+      {/* Settings modal */}
+      {showSettings && (
+        <>
+          <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Display settings</h3>
+              <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Row density</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['compact', 'normal', 'spacious'].map(d => (
+                  <button key={d} onClick={() => setDisplayDensity(d)}
+                    className={displayDensity === d ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
+                    style={{ flex: 1, padding: '8px 4px', fontSize: 12, textTransform: 'capitalize' }}>{d}</button>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
+          </div>
+        </>
+      )}
+
       {/* Bottom sheet (mobile task editor) */}
       {selectedTask && (
         <BottomSheet
           task={selectedTask}
           tasks={tasks}
           categories={categories}
+          categoryColors={categoryColors}
+          onColorChange={handleColorChange}
           onUpdate={handleTaskChange}
           onDelete={handleDelete}
           onClose={() => setSelectedId(null)}
@@ -394,7 +434,7 @@ function App() {
         />
 
         <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '6px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
-          <span>Gantt Builder — autosaved in your browser</span>
+          <span>Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'} — autosaved in your browser</span>
           <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>GitHub</a>
         </footer>
       </div>

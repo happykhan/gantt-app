@@ -49,14 +49,11 @@ function buildColumns(rangeStart, rangeEnd, unit) {
 
 // ── constants ─────────────────────────────────────────────────────────────────
 const COL_PX = { Week: 56, Month: 80, Quarter: 110, Year: 130 }
-const ROW_H = 52
-const BAR_H = 30
-const BAR_Y = (ROW_H - BAR_H) / 2
 const LABEL_W = 160
 const HEADER_H = 44
 const EDGE_PX = 14
 
-const DEFAULT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
+const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
 function isLight(hex) {
   const h = hex.replace('#','')
@@ -65,13 +62,17 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
   const [labelWidth, setLabelWidth] = useState(LABEL_W)
+
+  const ROW_H = rowHeight
+  const BAR_H = Math.max(16, Math.round(ROW_H * 0.577))
+  const BAR_Y = Math.round((ROW_H - BAR_H) / 2)
 
   function startLabelResize(e) {
     const startX = e.clientX
@@ -358,7 +359,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               {progressW > 0 && <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.18)', borderRadius: '4px 0 0 4px' }} />}
               <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
               {showLabelsInBars && (
-                <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
+                <span style={{ flex: 1, fontSize: barFontSize, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
                   {w > 40 ? task.name : ''}
                 </span>
               )}
@@ -403,7 +404,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   borderRight: '2px solid var(--gx-border)',
                   background: i % 2 === 0 ? 'var(--gx-surface)' : 'var(--gx-bg-alt)',
                   cursor: 'pointer',
-                  fontSize: 12, fontWeight: 500, color: 'var(--gx-text)',
+                  fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)',
                 }}
               >
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>

@@ -13,7 +13,7 @@ function useIsDesktop() {
   return isDesktop
 }
 
-export default function BottomSheet({ task, tasks = [], categories, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
+export default function BottomSheet({ task, tasks = [], categories, categoryColors = {}, onColorChange, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
   const [end, setEnd] = useState(task?.end || '')
@@ -43,7 +43,7 @@ export default function BottomSheet({ task, tasks = [], categories, onUpdate, on
   }
 
   const catIdx = categories.indexOf(category)
-  const catColor = catIdx >= 0 ? CAT_COLORS[catIdx % CAT_COLORS.length] : '#94a3b8'
+  const catColor = (category && categoryColors[category]) || (catIdx >= 0 ? CAT_COLORS[catIdx % CAT_COLORS.length] : '#94a3b8')
 
   const labelStyle = { fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' }
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--gx-border)', borderRadius: 8, background: 'var(--gx-surface)', color: 'var(--gx-text)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -115,19 +115,28 @@ export default function BottomSheet({ task, tasks = [], categories, onUpdate, on
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>Category / Work Package</label>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, borderRadius: 2, background: catColor, pointerEvents: 'none' }} />
+              <label style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <span style={{ width: 14, height: 14, borderRadius: 3, background: catColor, border: '1px solid rgba(0,0,0,0.2)', display: 'block' }} />
+                <input
+                  type="color"
+                  value={catColor}
+                  onChange={e => onColorChange?.(category, e.target.value)}
+                  style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
+                />
+              </label>
               <input
                 type="text"
                 value={category}
                 list="bs-categories"
                 onChange={e => setCategory(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: 30 }}
+                style={{ ...inputStyle, paddingLeft: 32 }}
                 placeholder="WP1, WP2…"
               />
               <datalist id="bs-categories">
                 {categories.map(c => <option key={c} value={c} />)}
               </datalist>
             </div>
+            <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginTop: 3, display: 'block' }}>Tap colour swatch to change WP colour</span>
           </div>
 
           {/* Progress */}

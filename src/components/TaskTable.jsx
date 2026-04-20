@@ -1,6 +1,51 @@
 import { useState } from 'react'
 
-const DEFAULT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
+const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
+
+function DepsModal({ task, tasks, onSave, onClose }) {
+  const [deps, setDeps] = useState(() =>
+    new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
+  )
+  const others = tasks.filter(t => t.id !== task.id)
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, backdropFilter: 'blur(2px)' }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+        zIndex: 51, background: 'var(--gx-surface)', borderRadius: 12, padding: '20px 20px 16px',
+        width: 340, maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--gx-text)' }}>Dependencies</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--gx-text-muted)' }}>{task.name}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {others.map(t => (
+            <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={deps.has(t.id)}
+                onChange={e => setDeps(prev => {
+                  const next = new Set(prev)
+                  e.target.checked ? next.add(t.id) : next.delete(t.id)
+                  return next
+                })}
+                style={{ accentColor: 'var(--gx-accent)', width: 16, height: 16, flexShrink: 0 }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => { onSave([...deps].join(', ')); onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
+          <button onClick={onClose} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Cancel</button>
+        </div>
+      </div>
+    </>
+  )
+}
 
 function duration(start, end) {
   const ms = new Date(end + 'T00:00:00') - new Date(start + 'T00:00:00')
@@ -29,6 +74,15 @@ function Cell({ value, onChange, type = 'text', min, style }) {
 }
 
 export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove }) {
+  const [openDepsId, setOpenDepsId] = useState(null)
+
+  function getDepNames(task) {
+    if (!task.dependencies) return []
+    return task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
+      .map(id => { const t = tasks.find(x => x.id === id); return t ? t.name : null })
+      .filter(Boolean)
+  }
+
   const th = { padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left',
     borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap', background: 'var(--gx-surface)', position: 'sticky', top: 0 }
@@ -46,6 +100,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
             <th style={th}>Dur</th>
             <th style={th}>Category</th>
             <th style={{ ...th, width: 60 }}>%</th>
+            <th style={th}>Deps</th>
             <th style={th}></th>
           </tr>
         </thead>
@@ -79,6 +134,22 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                     onChange={v => onUpdate(task.id, { progress: Math.min(100, Math.max(0, Number(v))) })}
                     style={{ width: 48, textAlign: 'right' }} />
                 </td>
+                <td style={{ ...td, maxWidth: 140, position: 'relative' }}>
+                  <div
+                    onClick={() => setOpenDepsId(openDepsId === task.id ? null : task.id)}
+                    style={{ cursor: 'pointer', display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 24, alignItems: 'center', padding: '2px 4px' }}
+                  >
+                    {getDepNames(task).length === 0
+                      ? <span style={{ fontSize: 11, color: 'var(--gx-text-muted)' }}>—</span>
+                      : getDepNames(task).map(name => (
+                          <span key={name} style={{ fontSize: 10, background: 'var(--gx-border)', color: 'var(--gx-text-muted)', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
+                            {name}
+                          </span>
+                        ))
+                    }
+                    <span style={{ fontSize: 10, color: 'var(--gx-accent)', marginLeft: 2 }}>✎</span>
+                  </div>
+                </td>
                 <td style={{ ...td, whiteSpace: 'nowrap', padding: '2px 6px' }}>
                   <button onClick={() => onMove(task.id, -1)} disabled={idx === 0}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--gx-text-muted)', fontSize: 13 }} title="Move up">↑</button>
@@ -96,6 +167,14 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
         style={{ margin: '6px 8px', fontSize: 12, padding: '4px 12px' }}>
         + Add task
       </button>
+      {openDepsId && (
+        <DepsModal
+          task={tasks.find(t => t.id === openDepsId)}
+          tasks={tasks}
+          onSave={deps => onUpdate(openDepsId, { dependencies: deps })}
+          onClose={() => setOpenDepsId(null)}
+        />
+      )}
     </div>
   )
 }
