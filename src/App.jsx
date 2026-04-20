@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
-import { toPng, toSvg } from 'html-to-image'
+import { toPng } from 'html-to-image'
 import CustomGantt from './components/CustomGantt'
 import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
@@ -230,85 +230,88 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     }
     reader.readAsText(file)
   }
-  async function captureExport(fn, filename) {
+  async function captureExport(filename) {
     const outer = ganttExportRef.current
     if (!outer) return
 
-    // Find every element inside outer that clips overflow, not just the known refs.
-    // This handles both inline and classic layouts without hardcoding specific refs.
+    // Inject chart title above the bars for the export (removed afterwards)
+    let titleEl = null
+    if (chartTitle) {
+      titleEl = document.createElement('div')
+      const ff = chartFont === 'inherit' ? 'system-ui, sans-serif' : chartFont
+      titleEl.style.cssText = `padding: 10px 16px 8px; font-size: 18px; font-weight: 700; color: #1e293b; background: #ffffff; flex-shrink: 0; font-family: ${ff};`
+      titleEl.textContent = chartTitle
+      outer.insertBefore(titleEl, outer.firstChild)
+    }
+
+    // Expand every clipped element so the full chart is captured
     const CLIP = new Set(['hidden', 'auto', 'scroll', 'clip'])
     const clips = [outer, ...outer.querySelectorAll('*')].filter(el => {
       const s = getComputedStyle(el)
-      // Never expand text-truncation elements — they use overflow:hidden to drive
-      // the ellipsis and must stay clipped so text doesn't overflow in the export
       if (s.textOverflow === 'ellipsis') return false
       return CLIP.has(s.overflow) || CLIP.has(s.overflowX) || CLIP.has(s.overflowY)
     })
-
     const saved = clips.map(el => ({
       el,
-      overflow: el.style.overflow,
-      overflowX: el.style.overflowX,
-      overflowY: el.style.overflowY,
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
+      overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY,
+      height: el.style.height, maxHeight: el.style.maxHeight,
     }))
     clips.forEach(el => {
-      el.style.overflow = 'visible'
-      el.style.overflowX = 'visible'
-      el.style.overflowY = 'visible'
+      el.style.overflow = 'visible'; el.style.overflowX = 'visible'; el.style.overflowY = 'visible'
       el.style.maxHeight = 'none'
-      // Only clear height when it's not an explicit pixel value.
-      // Pixel heights on the bar container / individual bars are load-bearing —
-      // clearing them collapses absolutely-positioned children and hides the bars.
       const inlineH = el.style.height
-      if (!inlineH || inlineH === 'auto' || inlineH.endsWith('%')) {
-        el.style.height = 'auto'
-      }
+      if (!inlineH || inlineH === 'auto' || inlineH.endsWith('%')) el.style.height = 'auto'
     })
 
-    // Measure full size after expanding
     const w = outer.scrollWidth
     const h = outer.scrollHeight
 
     try {
-      const isSvg = filename.endsWith('.svg')
-      const PIXEL_RATIO = isSvg ? 1 : exportScale
+      // Always rasterise via toPng — toSvg produces foreignObject which Inkscape ignores
       const MAX_W = 4800
-      const opts = { backgroundColor: '#ffffff', width: w, height: h }
-      if (!isSvg) opts.pixelRatio = PIXEL_RATIO
-      const raw = await fn(outer, opts)
+      let pngUrl = await toPng(outer, { backgroundColor: '#ffffff', pixelRatio: exportScale, width: w, height: h })
 
-      let finalUrl = raw
-      if (!isSvg) {
-        const renderedW = w * PIXEL_RATIO
-        if (renderedW > MAX_W) {
-          const scale = MAX_W / renderedW
-          const img = new Image()
-          img.src = raw
-          await new Promise(r => { img.onload = r })
-          const canvas = document.createElement('canvas')
-          canvas.width = MAX_W
-          canvas.height = Math.round(h * PIXEL_RATIO * scale)
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-          finalUrl = canvas.toDataURL('image/png')
-        }
+      // Scale down if the raw bitmap would be excessively wide
+      if (w * exportScale > MAX_W) {
+        const scale = MAX_W / (w * exportScale)
+        const img = new Image(); img.src = pngUrl
+        await new Promise(r => { img.onload = r })
+        const canvas = document.createElement('canvas')
+        canvas.width = MAX_W
+        canvas.height = Math.round(h * exportScale * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        pngUrl = canvas.toDataURL('image/png')
       }
 
-      const a = document.createElement('a'); a.href = finalUrl; a.download = filename; a.click()
+      if (filename.endsWith('.svg')) {
+        // Wrap PNG in a plain SVG <image> so Inkscape (and other editors) can open it
+        const img = new Image(); img.src = pngUrl
+        await new Promise(r => { img.onload = r })
+        const pw = img.naturalWidth, ph = img.naturalHeight
+        const svgStr = [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${pw}" height="${ph}" viewBox="0 0 ${pw} ${ph}">`,
+          `  <image xlink:href="${pngUrl}" x="0" y="0" width="${pw}" height="${ph}"/>`,
+          '</svg>',
+        ].join('\n')
+        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        const a = document.createElement('a'); a.href = pngUrl; a.download = filename; a.click()
+      }
     } catch (e) { console.error(e); alert('Export failed — try zooming to 100% first.') }
     finally {
       saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
-        el.style.overflow = overflow
-        el.style.overflowX = overflowX
-        el.style.overflowY = overflowY
-        el.style.height = height
-        el.style.maxHeight = maxHeight
+        el.style.overflow = overflow; el.style.overflowX = overflowX; el.style.overflowY = overflowY
+        el.style.height = height; el.style.maxHeight = maxHeight
       })
+      if (titleEl) outer.removeChild(titleEl)
     }
   }
-  async function exportPNG() { await captureExport(toPng, 'gantt.png') }
-  async function exportSVG() { await captureExport(toSvg, 'gantt.svg') }
+  async function exportPNG() { await captureExport('gantt.png') }
+  async function exportSVG() { await captureExport('gantt.svg') }
 
   function startTableResize(e) {
     const isTouch = e.type === 'touchstart'
