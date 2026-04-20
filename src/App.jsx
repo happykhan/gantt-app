@@ -59,6 +59,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [showSettings, setShowSettings] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
   const [showMore, setShowMore] = useState(false)
+  const [showExport, setShowExport] = useState(false)
 
   useEffect(() => {
     function onResize() { setIsMobile(window.innerWidth < 900) }
@@ -398,9 +399,24 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
               Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
             </label>
-            <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
-            <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
-            <button onClick={exportPDF} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PDF</button>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowExport(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+                Export ▾
+              </button>
+              {showExport && (
+                <>
+                  <div onClick={() => setShowExport(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 3, zIndex: 99, background: 'var(--gx-surface)', border: '1px solid var(--gx-border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: 110, padding: '4px 0' }}>
+                    {[['PNG', exportPNG], ['SVG', exportSVG], ['PDF', exportPDF]].map(([label, action]) => (
+                      <button key={label} onClick={() => { action(); setShowExport(false) }}
+                        style={{ display: 'block', width: '100%', padding: '9px 14px', fontSize: 13, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
           </>
         )}
@@ -421,12 +437,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 ['Settings', () => setShowSettings(true)],
                 ['Import…', () => setShowImport(true)],
                 ['Save project', saveProject],
-                ['Export PNG', exportPNG],
-                ['Export SVG', exportSVG],
-                ['Export PDF', exportPDF],
               ].map(([label, action]) => (
                 <button key={label} onClick={() => { action(); setShowMore(false) }}
                   style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {label}
+                </button>
+              ))}
+              <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
+              <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Export</div>
+              {[['PNG', exportPNG], ['SVG', exportSVG], ['PDF', exportPDF]].map(([label, action]) => (
+                <button key={label} onClick={() => { action(); setShowMore(false) }}
+                  style={{ display: 'block', width: '100%', padding: '10px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
                   {label}
                 </button>
               ))}
