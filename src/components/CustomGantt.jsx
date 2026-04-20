@@ -179,15 +179,15 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
   const todayX = dateToX(todayStr, rangeStartStr, pxPerDay)
 
   const legend = categories.length > 0 && (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '6px 12px', borderTop: '1px solid var(--gx-border)', alignItems: 'center', background: 'var(--gx-surface)', position: 'sticky', left: 0, minWidth: 'max-content' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '5px 10px', borderTop: '1px solid var(--gx-border)', alignItems: 'center', background: 'var(--gx-surface)', flexShrink: 0 }}>
       {categories.map(cat => {
         const fill = getCatColor(cat)
         const isEditing = editingCat === cat
         return (
-          <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {/* colour swatch + picker */}
             <label title="Change colour" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
-              <span style={{ width: 14, height: 14, borderRadius: 3, background: fill, flexShrink: 0, display: 'inline-block', border: '1px solid rgba(0,0,0,0.15)' }} />
+              <span style={{ width: 11, height: 11, borderRadius: 2, background: fill, flexShrink: 0, display: 'inline-block', border: '1px solid rgba(0,0,0,0.15)' }} />
               <input type="color" value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
                 style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
             </label>
@@ -343,8 +343,8 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
             })}
           </div>
         </div>
-        {legend}
       </div>
+      {legend}
     </div>
   )
 }
