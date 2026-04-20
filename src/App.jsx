@@ -42,18 +42,48 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [displayDensity, setDisplayDensity] = useState(() => {
     try { return localStorage.getItem('gantt-density') || 'normal' } catch { return 'normal' }
   })
+  const [chartFont, setChartFont] = useState(() => {
+    try { return localStorage.getItem('gantt-font') || 'inherit' } catch { return 'inherit' }
+  })
+  const [chartFontSize, setChartFontSize] = useState(() => {
+    try { return parseInt(localStorage.getItem('gantt-fontsize'), 10) || 11 } catch { return 11 }
+  })
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
   }, [labelMode])
-
   useEffect(() => {
     try { localStorage.setItem('gantt-density', displayDensity) } catch {}
   }, [displayDensity])
+  useEffect(() => {
+    try { localStorage.setItem('gantt-font', chartFont) } catch {}
+  }, [chartFont])
+  useEffect(() => {
+    try { localStorage.setItem('gantt-fontsize', chartFontSize) } catch {}
+  }, [chartFontSize])
 
-  const DENSITY = { compact: [34, 10], normal: [52, 11], spacious: [68, 13] }
-  const [rowHeight, barFontSize] = DENSITY[displayDensity] || DENSITY.normal
+  const DENSITY_ROW = { compact: 34, normal: 52, spacious: 68 }
+  const rowHeight = DENSITY_ROW[displayDensity] || 52
+  const barFontSize = chartFontSize
+
+  const PALETTES = {
+    default:     ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16'],
+    bold:        ['#e63946','#457b9d','#2d6a4f','#f4a261','#6d6875','#264653','#e9c46a','#f3722c','#90be6d','#277da1'],
+    pastel:      ['#a8dadc','#ffd6a5','#c8b6ff','#ffafcc','#b7e4c7','#ffc8a2','#b5ead7','#c7ceea','#e2f0cb','#ffdac1'],
+    earth:       ['#6b4226','#a0785a','#c8a97e','#7c9a7e','#4a7c59','#c4722a','#8b6245','#5c8374','#a3705f','#d4a853'],
+    viridis:     ['#440154','#31688e','#35b779','#fde725','#443983','#21908d','#8fd744','#b5de2b','#1f9e89','#482878'],
+    monochrome:  ['#1a1a1a','#444444','#666666','#888888','#aaaaaa','#333333','#555555','#777777','#999999','#bbbbbb'],
+  }
+
+  function applyPalette(name) {
+    const palette = PALETTES[name]
+    if (!palette) return
+    const cats = [...new Set(tasks.map(t => t.category).filter(Boolean))]
+    const next = {}
+    cats.forEach((cat, i) => { next[cat] = palette[i % palette.length] })
+    setCategoryColors(next)
+  }
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
   const [tableHeight, setTableHeight] = useState(240)
   const ganttAreaRef = useRef()
@@ -243,6 +273,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }
 
   const ZOOM_STEP = 0.25, ZOOM_MIN = 0.5, ZOOM_MAX = 2
+  const settingsLabel = { fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
+  const selectStyle = { width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--gx-border)', borderRadius: 8, background: 'var(--gx-surface)', color: 'var(--gx-text)', outline: 'none', fontFamily: 'inherit' }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -309,6 +341,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 labelMode={labelMode}
                 rowHeight={rowHeight}
                 barFontSize={barFontSize}
+                chartFont={chartFont}
                 categoryColors={categoryColors}
                 onColorChange={handleColorChange}
                 onTaskChange={handleTaskChange}
@@ -382,13 +415,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       {showSettings && (
         <>
           <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 340, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Display settings</h3>
               <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Row density</div>
+
+            {/* Row density */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={settingsLabel}>Row density</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['compact', 'normal', 'spacious'].map(d => (
                   <button key={d} onClick={() => setDisplayDensity(d)}
@@ -397,6 +432,45 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 ))}
               </div>
             </div>
+
+            {/* Font family */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={settingsLabel}>Chart font</div>
+              <select value={chartFont} onChange={e => setChartFont(e.target.value)} style={selectStyle}>
+                <option value="inherit">Default (theme)</option>
+                <option value="Inter, system-ui, sans-serif">Inter</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+                <option value="'Courier New', monospace">Courier New</option>
+              </select>
+            </div>
+
+            {/* Font size */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={settingsLabel}>Font size</div>
+              <select value={chartFontSize} onChange={e => setChartFontSize(Number(e.target.value))} style={selectStyle}>
+                {[9, 10, 11, 12, 13, 14].map(s => (
+                  <option key={s} value={s}>{s}px</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Colour palette */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={settingsLabel}>Colour palette</div>
+              <select defaultValue="" onChange={e => { if (e.target.value) applyPalette(e.target.value) }} style={selectStyle}>
+                <option value="" disabled>Apply a palette…</option>
+                <option value="default">Default</option>
+                <option value="bold">Bold</option>
+                <option value="pastel">Pastel</option>
+                <option value="earth">Earth tones</option>
+                <option value="viridis">Viridis</option>
+                <option value="monochrome">Monochrome</option>
+              </select>
+              <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginTop: 4, display: 'block' }}>Overwrites current WP colours</span>
+            </div>
+
             <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
           </div>
         </>

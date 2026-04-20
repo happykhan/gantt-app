@@ -62,7 +62,7 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
@@ -245,7 +245,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
       {/* Column headers */}
       <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 2, background: 'var(--gx-surface)', height: HEADER_H, borderBottom: '2px solid var(--gx-border)' }}>
         {columns.map((col, i) => (
-          <div key={i} style={{ width: colPx, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--gx-text-muted)', borderRight: '1px solid var(--gx-border)' }}>
+          <div key={i} style={{ width: colPx, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: barFontSize, fontWeight: 600, color: 'var(--gx-text-muted)', borderRight: '1px solid var(--gx-border)', fontFamily: chartFont }}>
             {col.label}
           </div>
         ))}
@@ -375,7 +375,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   // ── classic mode: left label column + scrollable chart ───────────────────────
   if (labelMode === 'classic') {
     return (
-      <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
+      <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0, fontFamily: chartFont }}>
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           {/* Left label column */}
           <div
@@ -440,7 +440,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
 
   // ── inline mode (default) ────────────────────────────────────────────────────
   return (
-    <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
+    <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0, fontFamily: chartFont }}>
       <div
         ref={node => { scrollRef.current = node; if (scrollExportRef) scrollExportRef.current = node }}
         onTouchMove={onTouchMove}
