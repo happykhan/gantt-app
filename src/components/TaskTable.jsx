@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
@@ -76,6 +76,7 @@ function fmtDate(iso) {
 function DateCell({ value, min, onChange }) {
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState(value)
+  useEffect(() => { if (!editing) setLocal(value) }, [value, editing])
   if (editing) {
     return (
       <input
@@ -100,6 +101,7 @@ function DateCell({ value, min, onChange }) {
 
 function Cell({ value, onChange, type = 'text', min, style }) {
   const [local, setLocal] = useState(value)
+  useEffect(() => { setLocal(value) }, [value])
   return (
     <input type={type} value={local}
       min={min}

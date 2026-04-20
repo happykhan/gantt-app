@@ -272,7 +272,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
         ))}
         {/* Row stripes */}
         {tasks.map((_, i) => (
-          <div key={i} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, borderBottom: '1px solid var(--gx-border)', background: i % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }} />
+          <div key={i} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, borderBottom: '1px solid var(--gx-border)', background: i % 2 === 0 ? 'var(--gx-bg)' : 'var(--gx-bg-alt)' }} />
         ))}
         {/* Dependency arrows */}
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'visible' }}>

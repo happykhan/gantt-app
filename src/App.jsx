@@ -23,11 +23,7 @@ function loadInitial() {
         return { tasks: saved.tasks, chartTitle: saved.chartTitle || '', categoryColors: saved.categoryColors || {} }
     }
   } catch {}
-  return {
-    tasks: generateSampleData().map(t => ({ ...t, id: t.id || makeId() })),
-    chartTitle: '',
-    categoryColors: {},
-  }
+  return { tasks: [], chartTitle: '', categoryColors: {} }
 }
 
 function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
@@ -287,7 +283,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
     try {
       const MAX_W = 4800
-      let pngUrl = await toPng(outer, { backgroundColor: '#ffffff', pixelRatio: exportScale, width: w, height: h })
+      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--gx-bg').trim() || '#ffffff'
+      let pngUrl = await toPng(outer, { backgroundColor: bgColor, pixelRatio: exportScale, width: w, height: h })
       if (w * exportScale > MAX_W) {
         const scale = MAX_W / (w * exportScale)
         const img = new Image(); img.src = pngUrl
