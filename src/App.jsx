@@ -31,12 +31,18 @@ function loadInitial() {
 
 function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
   const [viewMode, setViewMode] = useState(() => window.innerWidth < 768 ? 'Year' : 'Quarter')
-  const [labelMode, setLabelMode] = useState('inline')
+  const [labelMode, setLabelMode] = useState(() => {
+    try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
+  })
   const [selectedId, setSelectedId] = useState(null)
   const [zoom, setZoom] = useState(1)
   const [editingTitle, setEditingTitle] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+
+  useEffect(() => {
+    try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
+  }, [labelMode])
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
@@ -142,6 +148,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const CLIP = new Set(['hidden', 'auto', 'scroll', 'clip'])
     const clips = [outer, ...outer.querySelectorAll('*')].filter(el => {
       const s = getComputedStyle(el)
+      // Never expand text-truncation elements — they use overflow:hidden to drive
+      // the ellipsis and must stay clipped so text doesn't overflow in the export
+      if (s.textOverflow === 'ellipsis') return false
       return CLIP.has(s.overflow) || CLIP.has(s.overflowX) || CLIP.has(s.overflowY)
     })
 
