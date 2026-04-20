@@ -267,19 +267,21 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                   const x2 = dateToX(ts, rangeStartStr, pxPerDay)
                   const y2 = toIdx * ROW_H + ROW_H / 2
                   const MARGIN = 18
-                  // When tasks overlap in time (x2 ≤ x1+MARGIN), the simple elbow
-                  // cuts through bars. Route around the dependent task bar instead:
-                  // go ABOVE the bar if to-task is above from-task, BELOW if below.
+                  const EXIT = 12  // px to exit right of from-task before turning
+                  // Normal case (x2 ahead of x1): put the vertical segment at x2-2,
+                  // i.e., just before the destination bar's left edge. This keeps
+                  // the path from crossing intermediate task bars in the chart.
+                  // Overlap case (x2 behind x1+MARGIN): loop around the destination
+                  // bar, passing above or below depending on its row position.
                   let arrowPath
-                  if (x2 > x1 + MARGIN) {
-                    const mx = x1 + Math.min(MARGIN, (x2 - x1) / 2)
-                    arrowPath = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`
+                  if (x2 > x1 + EXIT) {
+                    arrowPath = `M${x1},${y1} H${x2-2} V${y2} H${x2}`
                   } else {
                     const goAbove = toIdx <= fromIdx
                     const loopY = goAbove
                       ? toIdx * ROW_H + BAR_Y - 6         // just above dependent task bar
                       : toIdx * ROW_H + BAR_Y + BAR_H + 6 // just below dependent task bar
-                    arrowPath = `M${x1},${y1} L${x1+MARGIN},${y1} L${x1+MARGIN},${loopY} L${x2-MARGIN},${loopY} L${x2-MARGIN},${y2} L${x2},${y2}`
+                    arrowPath = `M${x1},${y1} H${x1+MARGIN} V${loopY} H${x2-2} V${y2} H${x2}`
                   }
                   return (
                     <path key={`${depId}-${task.id}`}
