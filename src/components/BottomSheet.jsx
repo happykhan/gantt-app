@@ -113,7 +113,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
 
           {/* Category */}
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>Category / Work Package</label>
+            <label style={labelStyle}>Category</label>
             <div style={{ position: 'relative' }}>
               <label style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                 <span style={{ width: 14, height: 14, borderRadius: 3, background: catColor, border: '1px solid rgba(0,0,0,0.2)', display: 'block' }} />
