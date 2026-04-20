@@ -103,8 +103,32 @@ function rowsToTasks(rows, colMap) {
       end: end >= start ? end : start,
       progress,
       category,
-      dependencies: deps,
+      dependencies: deps, // resolved below
     })
+  })
+
+  // Resolve dependency references to task IDs.
+  // Supports: row numbers (1-based), task names, or existing IDs.
+  const idSet = new Set(tasks.map(t => t.id))
+  tasks.forEach(task => {
+    if (!task.dependencies) return
+    const resolved = task.dependencies
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(ref => {
+        // Already a valid ID in this import
+        if (idSet.has(ref)) return ref
+        // Row number (1-based)
+        const n = parseInt(ref, 10)
+        if (!isNaN(n) && n >= 1 && n <= tasks.length) return tasks[n - 1].id
+        // Task name match (case-insensitive)
+        const byName = tasks.find(t => t.name.toLowerCase() === ref.toLowerCase())
+        if (byName) return byName.id
+        return null
+      })
+      .filter(Boolean)
+    task.dependencies = resolved.join(', ')
   })
 
   return tasks
