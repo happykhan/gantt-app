@@ -556,6 +556,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   onRenameCategory={handleRenameCategory}
                   exportRef={ganttExportRef}
                   scrollExportRef={ganttScrollRef}
+                  isMobile={isMobile}
                 />
               </div>
             </div>
@@ -583,13 +584,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               onMouseDown={startTableResize}
               onTouchStart={startTableResize}
               style={{
-                height: 6, cursor: 'row-resize', flexShrink: 0,
+                height: isMobile ? 20 : 8, cursor: 'row-resize', flexShrink: 0,
                 background: 'var(--gx-border)',
                 borderTop: '1px solid var(--gx-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <div style={{ width: 32, height: 2, borderRadius: 1, background: 'var(--gx-text-muted)', opacity: 0.4 }} />
+              <div style={{ width: isMobile ? 48 : 32, height: isMobile ? 4 : 2, borderRadius: 2, background: 'var(--gx-text-muted)', opacity: 0.5 }} />
             </div>
             <TaskTable
               tasks={tasks}

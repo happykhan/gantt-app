@@ -62,7 +62,7 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
@@ -497,12 +497,15 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               onMouseDown={startLabelResize}
               onTouchStart={startLabelResize}
               style={{
-                position: 'absolute', right: 0, top: 0, bottom: 0, width: 6,
+                position: 'absolute', right: 0, top: 0, bottom: 0, width: isMobile ? 20 : 8,
                 cursor: 'col-resize', zIndex: 4,
-                background: 'transparent',
+                background: isMobile ? 'var(--gx-border)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               title="Drag to resize"
-            />
+            >
+              {isMobile && <div style={{ width: 3, height: 32, borderRadius: 2, background: 'var(--gx-text-muted)', opacity: 0.5 }} />}
+            </div>
           </div>
 
           {/* Chart area */}
