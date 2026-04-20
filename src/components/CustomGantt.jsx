@@ -252,35 +252,46 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                   const isDraggingFrom = dragState?.taskId === fromTask.id
                   const isDraggingTo = dragState?.taskId === task.id
                   let fs = fromTask.start, fe = fromTask.end
-                  let ts = task.start
+                  let ts = task.start, te = task.end
                   if (isDraggingFrom && dragRef.current) {
                     const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
                     if (type === 'move') { fs = addDays(origStart, d); fe = addDays(origEnd, d) }
                     else if (type === 'resize-end') { fe = addDays(origEnd, d) }
                   }
                   if (isDraggingTo && dragRef.current) {
-                    const d = dragState.dxDays; const { type, origStart } = dragRef.current
-                    if (type === 'move' || type === 'resize-start') ts = addDays(origStart, d)
+                    const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
+                    if (type === 'move') { ts = addDays(origStart, d); te = addDays(origEnd, d) }
+                    else if (type === 'resize-start') { ts = addDays(origStart, d) }
+                    else if (type === 'resize-end') { te = addDays(origEnd, d) }
                   }
                   const x1 = dateToX(fe, rangeStartStr, pxPerDay)
                   const y1 = fromIdx * ROW_H + ROW_H / 2
                   const x2 = dateToX(ts, rangeStartStr, pxPerDay)
                   const y2 = toIdx * ROW_H + ROW_H / 2
+                  const x2end = dateToX(te, rangeStartStr, pxPerDay)
+
                   const MARGIN = 18
-                  const EXIT = 12  // px to exit right of from-task before turning
-                  // Standard Gantt elbow: exit right by EXIT px, drop to destination
-                  // row, then go right into the destination bar's left edge.
-                  // Overlap case (x2 ≤ x1+EXIT): loop around the destination bar,
-                  // passing above or below depending on row position.
+                  const APPROACH = 10  // approach dest bar from this many px left
+
                   let arrowPath
-                  if (x2 > x1 + EXIT) {
-                    arrowPath = `M${x1},${y1} H${x1+EXIT} V${y2} H${x2}`
+                  if (x2 >= x1) {
+                    // Normal forward: exit right, drop, arrive at dest left edge
+                    const ex = Math.min(MARGIN, Math.max(2, (x2 - x1) / 2))
+                    arrowPath = `M${x1},${y1} H${x1+ex} V${y2} H${x2}`
                   } else {
-                    const goAbove = toIdx <= fromIdx
-                    const loopY = goAbove
-                      ? toIdx * ROW_H + BAR_Y - 6         // just above dependent task bar
-                      : toIdx * ROW_H + BAR_Y + BAR_H + 6 // just below dependent task bar
-                    arrowPath = `M${x1},${y1} H${x1+MARGIN} V${loopY} H${x2-2} V${y2} H${x2}`
+                    // Overlap: exit to the right of BOTH bars so the drop never
+                    // crosses the destination bar, then approach from the left.
+                    const rightExit = Math.max(x1, x2end) + MARGIN
+                    const leftApproach = x2 - APPROACH
+                    if (toIdx > fromIdx) {
+                      // Dest is below predecessor: drop past dest bar bottom, rise from left
+                      const loopY = toIdx * ROW_H + BAR_Y + BAR_H + 6
+                      arrowPath = `M${x1},${y1} H${rightExit} V${loopY} H${leftApproach} V${y2} H${x2}`
+                    } else {
+                      // Dest is above predecessor: rise past dest bar top, drop from left
+                      const loopY = toIdx * ROW_H + BAR_Y - 6
+                      arrowPath = `M${x1},${y1} H${rightExit} V${loopY} H${leftApproach} V${y2} H${x2}`
+                    }
                   }
                   return (
                     <path key={`${depId}-${task.id}`}
