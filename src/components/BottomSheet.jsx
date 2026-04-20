@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 const CAT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
 
-export default function BottomSheet({ task, categories, onUpdate, onDelete, onClose }) {
+export default function BottomSheet({ task, categories, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
   const [end, setEnd] = useState(task?.end || '')
@@ -116,6 +116,12 @@ export default function BottomSheet({ task, categories, onUpdate, onDelete, onCl
               onChange={e => setProgress(Number(e.target.value))}
               style={{ width: '100%', accentColor: 'var(--gx-accent)' }}
             />
+          </div>
+
+          {/* Reorder */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={onMoveUp} disabled={!onMoveUp} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task up">↑</button>
+            <button onClick={onMoveDown} disabled={!onMoveDown} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task down">↓</button>
           </div>
 
           {/* Actions */}
