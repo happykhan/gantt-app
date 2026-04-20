@@ -49,6 +49,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [chartFontSize, setChartFontSize] = useState(() => {
     try { return parseInt(localStorage.getItem('gantt-fontsize'), 10) || 11 } catch { return 11 }
   })
+  const [exportScale, setExportScale] = useState(() => {
+    try { return parseInt(localStorage.getItem('gantt-exportScale'), 10) || 2 } catch { return 2 }
+  })
   const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
@@ -63,6 +66,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   useEffect(() => {
     try { localStorage.setItem('gantt-fontsize', chartFontSize) } catch {}
   }, [chartFontSize])
+  useEffect(() => {
+    try { localStorage.setItem('gantt-exportScale', exportScale) } catch {}
+  }, [exportScale])
 
   const DENSITY_ROW = { compact: 34, normal: 52, spacious: 68 }
   const rowHeight = DENSITY_ROW[displayDensity] || 52
@@ -247,10 +253,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const h = outer.scrollHeight
 
     try {
-      // Capture at 2× pixel ratio for crisp rendering in Word/print (~200dpi).
-      // Scale down to MAX_W if the result is excessively wide, preserving aspect ratio.
-      const PIXEL_RATIO = 2
-      const MAX_W = 3000
+      // Capture at user-chosen pixel ratio, scale down if excessively wide.
+      const PIXEL_RATIO = exportScale
+      const MAX_W = 4800
       const raw = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: PIXEL_RATIO, width: w, height: h })
 
       let finalUrl = raw
@@ -517,6 +522,27 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 ))}
               </div>
               <span style={{ fontSize: 11, color: 'var(--gx-text-muted)', marginTop: 5, display: 'block' }}>Overwrites current WP colours</span>
+            </div>
+
+            {/* PNG export resolution */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={settingsLabel}>PNG export resolution</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { scale: 1, label: '1×', note: 'screen' },
+                  { scale: 2, label: '2×', note: 'Word' },
+                  { scale: 3, label: '3×', note: 'sharp' },
+                  { scale: 4, label: '4×', note: 'print' },
+                ].map(({ scale, label, note }) => (
+                  <button key={scale} onClick={() => setExportScale(scale)}
+                    className={exportScale === scale ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
+                    style={{ flex: 1, padding: '8px 4px', fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+                  >
+                    <span style={{ fontWeight: 700 }}>{label}</span>
+                    <span style={{ fontSize: 10, opacity: 0.75 }}>{note}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
