@@ -2,6 +2,17 @@ import { useState, useEffect } from 'react'
 
 const CAT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 768px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const handler = e => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return isDesktop
+}
+
 export default function BottomSheet({ task, tasks = [], categories, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
@@ -11,6 +22,7 @@ export default function BottomSheet({ task, tasks = [], categories, onUpdate, on
   const [deps, setDeps] = useState(() =>
     new Set(task?.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
+  const isDesktop = useIsDesktop()
 
   useEffect(() => {
     if (task) {
@@ -36,6 +48,22 @@ export default function BottomSheet({ task, tasks = [], categories, onUpdate, on
   const labelStyle = { fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' }
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--gx-border)', borderRadius: 8, background: 'var(--gx-surface)', color: 'var(--gx-text)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
 
+  const panelStyle = isDesktop
+    ? {
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        zIndex: 50, width: 480, maxWidth: '90vw', maxHeight: '90vh',
+        background: 'var(--gx-surface)', borderRadius: 12,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+        overflowY: 'auto',
+      }
+    : {
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+        background: 'var(--gx-surface)', borderRadius: '16px 16px 0 0',
+        padding: '0 0 env(safe-area-inset-bottom)',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
+        maxHeight: '85vh', overflowY: 'auto',
+      }
+
   return (
     <>
       {/* Backdrop */}
@@ -44,22 +72,15 @@ export default function BottomSheet({ task, tasks = [], categories, onUpdate, on
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }}
       />
 
-      {/* Sheet */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-        background: 'var(--gx-surface)',
-        borderRadius: '16px 16px 0 0',
-        padding: '0 0 env(safe-area-inset-bottom)',
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-        maxHeight: '85vh',
-        overflowY: 'auto',
-      }}>
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gx-border)' }} />
-        </div>
+      <div style={panelStyle}>
+        {/* Drag handle — mobile only */}
+        {!isDesktop && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gx-border)' }} />
+          </div>
+        )}
 
-        <div style={{ padding: '8px 20px 20px' }}>
+        <div style={{ padding: isDesktop ? '20px 24px 24px' : '8px 20px 20px' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Edit task</h3>
