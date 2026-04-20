@@ -80,7 +80,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     const startX = e.clientX
     const startW = labelWidth
     function onMove(ev) {
-      setLabelWidth(Math.max(60, Math.min(400, startW + ev.clientX - startX)))
+      setLabelWidth(Math.max(60, Math.min(window.innerWidth * 0.6, startW + ev.clientX - startX)))
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
