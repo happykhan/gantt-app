@@ -266,10 +266,22 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
                   const y1 = fromIdx * ROW_H + ROW_H / 2
                   const x2 = dateToX(ts, rangeStartStr, pxPerDay)
                   const y2 = toIdx * ROW_H + ROW_H / 2
-                  const mx = x1 + Math.min(20, (x2 - x1) / 2)
+                  const MARGIN = 18
+                  // When tasks overlap in time (x2 ≤ x1+MARGIN), the simple elbow
+                  // cuts through bars. Instead, exit right, loop below both rows,
+                  // then approach the target from the left.
+                  let arrowPath
+                  if (x2 > x1 + MARGIN) {
+                    const mx = x1 + Math.min(MARGIN, (x2 - x1) / 2)
+                    arrowPath = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`
+                  } else {
+                    const lowerRow = Math.max(fromIdx, toIdx)
+                    const loopY = lowerRow * ROW_H + ROW_H - 5
+                    arrowPath = `M${x1},${y1} L${x1+MARGIN},${y1} L${x1+MARGIN},${loopY} L${x2-MARGIN},${loopY} L${x2-MARGIN},${y2} L${x2},${y2}`
+                  }
                   return (
                     <path key={`${depId}-${task.id}`}
-                      d={`M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`}
+                      d={arrowPath}
                       fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5"
                       strokeDasharray="4 2" markerEnd="url(#dep-arrow)"
                     />
