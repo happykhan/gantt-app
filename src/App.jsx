@@ -57,6 +57,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     try { return parseInt(localStorage.getItem('gantt-exportScale'), 10) || 2 } catch { return 2 }
   })
   const [showSettings, setShowSettings] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [showMore, setShowMore] = useState(false)
+
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth < 768) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
@@ -202,7 +210,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }
 
   function saveProject() {
-    const blob = new Blob([JSON.stringify({ tasks, chartTitle }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ tasks, chartTitle, categoryColors }, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'gantt-project.json'
@@ -214,9 +222,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const reader = new FileReader()
     reader.onload = e => {
       try {
-        const { tasks: loaded, chartTitle: loadedTitle } = JSON.parse(e.target.result)
+        const { tasks: loaded, chartTitle: loadedTitle, categoryColors: loadedColors } = JSON.parse(e.target.result)
         if (Array.isArray(loaded) && loaded.length) setTasks(loaded)
         if (loadedTitle) setChartTitle(loadedTitle)
+        if (loadedColors && typeof loadedColors === 'object') setCategoryColors(loadedColors)
       } catch { /* ignore */ }
     }
     reader.readAsText(file)
@@ -263,23 +272,27 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const h = outer.scrollHeight
 
     try {
-      // Capture at user-chosen pixel ratio, scale down if excessively wide.
-      const PIXEL_RATIO = exportScale
+      const isSvg = filename.endsWith('.svg')
+      const PIXEL_RATIO = isSvg ? 1 : exportScale
       const MAX_W = 4800
-      const raw = await fn(outer, { backgroundColor: '#ffffff', pixelRatio: PIXEL_RATIO, width: w, height: h })
+      const opts = { backgroundColor: '#ffffff', width: w, height: h }
+      if (!isSvg) opts.pixelRatio = PIXEL_RATIO
+      const raw = await fn(outer, opts)
 
       let finalUrl = raw
-      const renderedW = w * PIXEL_RATIO
-      if (renderedW > MAX_W) {
-        const scale = MAX_W / renderedW
-        const img = new Image()
-        img.src = raw
-        await new Promise(r => { img.onload = r })
-        const canvas = document.createElement('canvas')
-        canvas.width = MAX_W
-        canvas.height = Math.round(h * PIXEL_RATIO * scale)
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        finalUrl = canvas.toDataURL('image/png')
+      if (!isSvg) {
+        const renderedW = w * PIXEL_RATIO
+        if (renderedW > MAX_W) {
+          const scale = MAX_W / renderedW
+          const img = new Image()
+          img.src = raw
+          await new Promise(r => { img.onload = r })
+          const canvas = document.createElement('canvas')
+          canvas.width = MAX_W
+          canvas.height = Math.round(h * PIXEL_RATIO * scale)
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+          finalUrl = canvas.toDataURL('image/png')
+        }
       }
 
       const a = document.createElement('a'); a.href = finalUrl; a.download = filename; a.click()
@@ -322,11 +335,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
         {['Week','Month','Quarter','Year'].map(m => (
           <button key={m} onClick={() => setViewMode(m)}
             className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-            style={{ fontSize: 12, padding: '3px 8px' }}>{m}</button>
+            style={{ fontSize: 12, padding: '3px 8px' }}>{isMobile ? m.charAt(0) : m}</button>
         ))}
         <span style={{ width: 4 }} />
         <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
@@ -335,26 +348,67 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
           className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
-          className="gx-btn gx-btn-secondary"
-          style={{ fontSize: 12, padding: '3px 8px' }}
-          title={labelMode === 'inline' ? 'Switch to classic layout (labels on left)' : 'Switch to inline layout (labels in bars)'}
-        >
-          {labelMode === 'inline' ? 'Classic' : 'Inline'}
-        </button>
-        <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Display settings">⚙ Settings</button>
-        <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
-          {showTable ? '▲ Table' : '▼ Table'}
-        </button>
-        <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Import</button>
-        <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Save</button>
-        <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
-          Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
-        </label>
-        <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
-        <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
-        <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
+
+        {isMobile ? (
+          <button onClick={() => setShowMore(s => !s)} className="gx-btn gx-btn-secondary"
+            style={{ fontSize: 18, padding: '1px 12px', lineHeight: 1 }} title="More options">⋯</button>
+        ) : (
+          <>
+            <button onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
+              className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+              {labelMode === 'inline' ? 'Classic' : 'Inline'}
+            </button>
+            <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>⚙ Settings</button>
+            <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
+              {showTable ? '▲ Table' : '▼ Table'}
+            </button>
+            <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Import</button>
+            <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Save</button>
+            <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }}>
+              Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
+            </label>
+            <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
+            <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
+            <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
+          </>
+        )}
+
+        {/* Mobile overflow menu */}
+        {isMobile && showMore && (
+          <>
+            <div onClick={() => setShowMore(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+            <div style={{
+              position: 'absolute', right: 8, top: '100%', zIndex: 99,
+              background: 'var(--gx-surface)', border: '1px solid var(--gx-border)',
+              borderRadius: 10, boxShadow: '0 6px 28px rgba(0,0,0,0.22)',
+              minWidth: 200, padding: '6px 0', marginTop: 4,
+            }}>
+              {[
+                [labelMode === 'inline' ? 'Classic layout' : 'Inline layout', () => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')],
+                [showTable ? 'Hide table' : 'Show table', () => setShowTable(s => !s)],
+                ['Settings', () => setShowSettings(true)],
+                ['Import…', () => setShowImport(true)],
+                ['Save project', saveProject],
+                ['Export PNG', exportPNG],
+                ['Export SVG', exportSVG],
+              ].map(([label, action]) => (
+                <button key={label} onClick={() => { action(); setShowMore(false) }}
+                  style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {label}
+                </button>
+              ))}
+              <label style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, background: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                Load project
+                <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = ''; setShowMore(false) }} />
+              </label>
+              <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
+              <button onClick={() => { setConfirmClear(true); setShowMore(false) }}
+                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-error)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Clear all
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
