@@ -230,11 +230,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     }
     reader.readAsText(file)
   }
-  async function captureExport(filename) {
+  // Shared: expand overflow, inject title, capture PNG, restore — returns data URL or null
+  async function capturePng() {
     const outer = ganttExportRef.current
-    if (!outer) return
+    if (!outer) return null
 
-    // Inject chart title above the bars for the export (removed afterwards)
     let titleEl = null
     if (chartTitle) {
       titleEl = document.createElement('div')
@@ -244,7 +244,6 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       outer.insertBefore(titleEl, outer.firstChild)
     }
 
-    // Expand every clipped element so the full chart is captured
     const CLIP = new Set(['hidden', 'auto', 'scroll', 'clip'])
     const clips = [outer, ...outer.querySelectorAll('*')].filter(el => {
       const s = getComputedStyle(el)
@@ -252,8 +251,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       return CLIP.has(s.overflow) || CLIP.has(s.overflowX) || CLIP.has(s.overflowY)
     })
     const saved = clips.map(el => ({
-      el,
-      overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY,
+      el, overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY,
       height: el.style.height, maxHeight: el.style.maxHeight,
     }))
     clips.forEach(el => {
@@ -267,11 +265,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const h = outer.scrollHeight
 
     try {
-      // Always rasterise via toPng — toSvg produces foreignObject which Inkscape ignores
       const MAX_W = 4800
       let pngUrl = await toPng(outer, { backgroundColor: '#ffffff', pixelRatio: exportScale, width: w, height: h })
-
-      // Scale down if the raw bitmap would be excessively wide
       if (w * exportScale > MAX_W) {
         const scale = MAX_W / (w * exportScale)
         const img = new Image(); img.src = pngUrl
@@ -282,27 +277,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
         pngUrl = canvas.toDataURL('image/png')
       }
-
-      if (filename.endsWith('.svg')) {
-        // Wrap PNG in a plain SVG <image> so Inkscape (and other editors) can open it
-        const img = new Image(); img.src = pngUrl
-        await new Promise(r => { img.onload = r })
-        const pw = img.naturalWidth, ph = img.naturalHeight
-        const svgStr = [
-          '<?xml version="1.0" encoding="UTF-8"?>',
-          `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${pw}" height="${ph}" viewBox="0 0 ${pw} ${ph}">`,
-          `  <image xlink:href="${pngUrl}" x="0" y="0" width="${pw}" height="${ph}"/>`,
-          '</svg>',
-        ].join('\n')
-        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-        URL.revokeObjectURL(url)
-      } else {
-        const a = document.createElement('a'); a.href = pngUrl; a.download = filename; a.click()
-      }
-    } catch (e) { console.error(e); alert('Export failed — try zooming to 100% first.') }
-    finally {
+      return pngUrl
+    } catch (e) {
+      console.error(e); alert('Export failed — try zooming to 100% first.'); return null
+    } finally {
       saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
         el.style.overflow = overflow; el.style.overflowX = overflowX; el.style.overflowY = overflowY
         el.style.height = height; el.style.maxHeight = maxHeight
@@ -310,8 +288,52 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       if (titleEl) outer.removeChild(titleEl)
     }
   }
-  async function exportPNG() { await captureExport('gantt.png') }
-  async function exportSVG() { await captureExport('gantt.svg') }
+
+  async function exportPNG() {
+    const pngUrl = await capturePng()
+    if (!pngUrl) return
+    const a = document.createElement('a'); a.href = pngUrl; a.download = 'gantt.png'; a.click()
+  }
+
+  async function exportSVG() {
+    const pngUrl = await capturePng()
+    if (!pngUrl) return
+    const img = new Image(); img.src = pngUrl
+    await new Promise(r => { img.onload = r })
+    const pw = img.naturalWidth, ph = img.naturalHeight
+    const svgStr = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${pw}" height="${ph}" viewBox="0 0 ${pw} ${ph}">`,
+      `  <image xlink:href="${pngUrl}" x="0" y="0" width="${pw}" height="${ph}"/>`,
+      '</svg>',
+    ].join('\n')
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'gantt.svg'; a.click(); URL.revokeObjectURL(url)
+  }
+
+  async function exportPDF() {
+    const pngUrl = await capturePng()
+    if (!pngUrl) return
+    const { jsPDF } = await import('jspdf')
+    const img = new Image(); img.src = pngUrl
+    await new Promise(r => { img.onload = r })
+    const pw = img.naturalWidth, ph = img.naturalHeight
+    const landscape = pw > ph
+    const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const margin = 10
+    const availW = pageW - 2 * margin
+    const availH = pageH - 2 * margin
+    const aspect = pw / ph
+    let imgW, imgH
+    if (availW / aspect <= availH) { imgW = availW; imgH = availW / aspect }
+    else { imgH = availH; imgW = availH * aspect }
+    const x = margin + (availW - imgW) / 2
+    const y = margin + (availH - imgH) / 2
+    pdf.addImage(pngUrl, 'PNG', x, y, imgW, imgH)
+    pdf.save('gantt.pdf')
+  }
 
   function startTableResize(e) {
     const isTouch = e.type === 'touchstart'
@@ -378,6 +400,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             </label>
             <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
             <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
+            <button onClick={exportPDF} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PDF</button>
             <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
           </>
         )}
@@ -400,6 +423,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 ['Save project', saveProject],
                 ['Export PNG', exportPNG],
                 ['Export SVG', exportSVG],
+                ['Export PDF', exportPDF],
               ].map(([label, action]) => (
                 <button key={label} onClick={() => { action(); setShowMore(false) }}
                   style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
