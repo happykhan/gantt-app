@@ -85,7 +85,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
 
   const th = { padding: '6px 8px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left',
-    borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap', background: 'var(--gx-surface)', position: 'sticky', top: 0 }
+    borderBottom: '2px solid var(--gx-border)', whiteSpace: 'nowrap', background: 'var(--gx-surface)', position: 'sticky', top: 0, zIndex: 2 }
   const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle' }
 
   return (
