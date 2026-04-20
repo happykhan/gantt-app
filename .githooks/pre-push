@@ -1,0 +1,11 @@
+#!/bin/sh
+# Abort push if any src/ files are untracked — they won't exist on Vercel.
+UNTRACKED=$(git ls-files --others --exclude-standard -- 'src/')
+if [ -n "$UNTRACKED" ]; then
+  echo "ERROR: Untracked source files would be missing on Vercel:"
+  echo "$UNTRACKED" | sed 's/^/  /'
+  echo ""
+  echo "Run: git add <files> && git commit before pushing."
+  exit 1
+fi
+exit 0
