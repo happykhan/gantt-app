@@ -36,7 +36,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => {
+    try { return parseFloat(localStorage.getItem('gantt-zoom')) || 1 } catch { return 1 }
+  })
   const [editingTitle, setEditingTitle] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
@@ -60,6 +62,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   useEffect(() => {
     try { localStorage.setItem('gantt-density', displayDensity) } catch {}
   }, [displayDensity])
+  useEffect(() => {
+    try { localStorage.setItem('gantt-zoom', zoom) } catch {}
+  }, [zoom])
   useEffect(() => {
     try { localStorage.setItem('gantt-font', chartFont) } catch {}
   }, [chartFont])

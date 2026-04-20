@@ -68,7 +68,9 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   const dragRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
-  const [labelWidth, setLabelWidth] = useState(LABEL_W)
+  const [labelWidth, setLabelWidth] = useState(() => {
+    try { return parseInt(localStorage.getItem('gantt-labelWidth'), 10) || LABEL_W } catch { return LABEL_W }
+  })
   const [inlineEditId, setInlineEditId] = useState(null)
   const [inlineEditVal, setInlineEditVal] = useState('')
 
@@ -80,11 +82,14 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     const startX = e.clientX
     const startW = labelWidth
     function onMove(ev) {
-      setLabelWidth(Math.max(60, Math.min(window.innerWidth * 0.6, startW + ev.clientX - startX)))
+      lastW = Math.max(60, Math.min(window.innerWidth * 0.6, startW + ev.clientX - startX))
+      setLabelWidth(lastW)
     }
+    let lastW = startW
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      try { localStorage.setItem('gantt-labelWidth', lastW) } catch {}
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
