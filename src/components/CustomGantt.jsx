@@ -254,7 +254,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
       {/* Rows + bars */}
       <div style={{ position: 'relative', width: totalW, height: tasks.length * ROW_H }}>
         {/* Dependency arrows */}
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}>
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, overflow: 'visible' }}>
           <defs>
             <marker id="dep-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
               <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(100,116,139,0.9)" strokeWidth="1.5" />
