@@ -2,7 +2,10 @@ import { useRef, useCallback, useMemo, useState } from 'react'
 
 // ── date helpers ──────────────────────────────────────────────────────────────
 function parseDate(str) { return new Date(str + 'T00:00:00') }
-function toStr(d) { return d instanceof Date ? d.toISOString().substring(0, 10) : String(d) }
+function toStr(d) {
+  if (!(d instanceof Date)) return String(d)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 function daysBetween(a, b) { return Math.round((parseDate(b) - parseDate(a)) / 86400000) }
 function addDays(str, n) { const d = parseDate(str); d.setDate(d.getDate() + n); return toStr(d) }
 function dateToX(dateStr, rangeStartStr, pxPerDay) {
@@ -13,6 +16,11 @@ function floorToUnit(date, unit) {
   const d = new Date(date)
   if (unit === 'Month') { d.setDate(1); return d }
   if (unit === 'Quarter') { d.setDate(1); d.setMonth(Math.floor(d.getMonth() / 3) * 3); return d }
+  if (unit === 'Week') {
+    const day = d.getDay() // 0=Sun, 1=Mon…6=Sat
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // back to Monday
+    return d
+  }
   d.setMonth(0); d.setDate(1); return d
 }
 function advanceUnit(date, unit) {
@@ -32,9 +40,6 @@ function colLabel(date, unit) {
 function buildColumns(rangeStart, rangeEnd, unit) {
   const cols = []
   let cur = floorToUnit(new Date(rangeStart), unit)
-  if (unit === 'Week') {
-    cur.setDate(cur.getDate() - cur.getDay() + 1) // Monday
-  }
   while (cur <= rangeEnd) {
     cols.push({ date: new Date(cur), label: colLabel(cur, unit) })
     cur = advanceUnit(cur, unit)
@@ -251,7 +256,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
         <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}>
           <defs>
             <marker id="dep-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-              <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(99,102,241,0.85)" strokeWidth="1.5" />
+              <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(100,116,139,0.9)" strokeWidth="1.5" />
             </marker>
           </defs>
           {tasks.map((task, toIdx) => {
@@ -302,7 +307,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               return (
                 <path key={`${depId}-${task.id}`}
                   d={arrowPath}
-                  fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5"
+                  fill="none" stroke="rgba(100,116,139,0.7)" strokeWidth="1.5"
                   strokeDasharray="4 2" markerEnd="url(#dep-dot)"
                 />
               )

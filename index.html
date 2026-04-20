@@ -6,6 +6,12 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gantt Chart Builder</title>
+    <script>
+      try {
+        var t = localStorage.getItem('gx-theme') || 'dark'
+        document.documentElement.setAttribute('data-theme', t)
+      } catch(e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
