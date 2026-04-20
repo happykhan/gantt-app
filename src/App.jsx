@@ -31,10 +31,12 @@ function loadInitial() {
 
 function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
   const [viewMode, setViewMode] = useState(() => window.innerWidth < 768 ? 'Year' : 'Quarter')
+  const [labelMode, setLabelMode] = useState('inline')
   const [selectedId, setSelectedId] = useState(null)
   const [zoom, setZoom] = useState(1)
   const [editingTitle, setEditingTitle] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
   const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
@@ -104,12 +106,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
   }
   function handleClear() {
-    if (window.confirm('Clear all tasks?')) {
-      setTasks([])
-      setChartTitle('')
-      setCategoryColors({})
-      setSelectedId(null)
-    }
+    setTasks([])
+    setChartTitle('')
+    setCategoryColors({})
+    setSelectedId(null)
+    setConfirmClear(false)
   }
 
   function saveProject() {
@@ -192,6 +193,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
           className="gx-btn gx-btn-secondary" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
+          className="gx-btn gx-btn-secondary"
+          style={{ fontSize: 12, padding: '3px 8px' }}
+          title={labelMode === 'inline' ? 'Switch to classic layout (labels on left)' : 'Switch to inline layout (labels in bars)'}
+        >
+          {labelMode === 'inline' ? '☰ Classic' : '▦ Inline'}
+        </button>
         <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>
           {showTable ? '▲ Table' : '▼ Table'}
         </button>
@@ -202,7 +211,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         </label>
         <button onClick={exportPNG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>PNG</button>
         <button onClick={exportSVG} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>SVG</button>
-        <button onClick={handleClear} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
+        <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}>Clear</button>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -229,6 +238,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               <CustomGantt
                 tasks={tasks}
                 viewMode={viewMode}
+                labelMode={labelMode}
                 categoryColors={categoryColors}
                 onColorChange={handleColorChange}
                 onTaskChange={handleTaskChange}
@@ -269,6 +279,21 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
       {/* Import modal */}
       {showImport && <ImportModal onLoad={handleImport} onClose={() => setShowImport(false)} />}
+
+      {/* Confirm clear modal */}
+      {confirmClear && (
+        <>
+          <div onClick={() => setConfirmClear(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '28px 28px 24px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Clear all tasks?</h3>
+            <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>This will remove all tasks and the chart title. This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={handleClear} style={{ flex: 1, padding: '10px', fontSize: 14, background: 'var(--gx-error)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Clear all</button>
+              <button onClick={() => setConfirmClear(false)} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 14 }}>Cancel</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Bottom sheet (mobile task editor) */}
       {selectedTask && (

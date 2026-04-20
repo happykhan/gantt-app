@@ -47,7 +47,7 @@ const COL_PX = { Week: 56, Month: 80, Quarter: 110, Year: 130 }
 const ROW_H = 52
 const BAR_H = 30
 const BAR_Y = (ROW_H - BAR_H) / 2
-const LABEL_W = 150
+const LABEL_W = 160
 const HEADER_H = 44
 const EDGE_PX = 14
 
@@ -60,11 +60,12 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef }) {
   const scrollRef = useRef(null)
+  const labelColRef = useRef(null)
   const dragRef = useRef(null)
-  const [dragState, setDragState] = useState(null) // { taskId, dxDays }
-  const [editingCat, setEditingCat] = useState(null) // category name being renamed
+  const [dragState, setDragState] = useState(null)
+  const [editingCat, setEditingCat] = useState(null)
 
   const colPx = COL_PX[viewMode] || 80
 
@@ -148,7 +149,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
   }, [])
 
   const onTouchEnd = useCallback((e) => {
-    e.preventDefault() // prevent synthetic mouse/click events after touch
+    e.preventDefault()
     commitDrag(e.changedTouches[0]?.clientX ?? dragRef.current?.startClientX ?? 0)
   }, [onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -173,6 +174,11 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
     window.addEventListener('mouseup', onMouseUp)
   }, [pxPerDay, onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── classic mode scroll sync ─────────────────────────────────────────────────
+  const onChartScroll = useCallback((e) => {
+    if (labelColRef.current) labelColRef.current.scrollTop = e.currentTarget.scrollTop
+  }, [])
+
   if (!tasks.length) return <div style={{ padding: 24, color: 'var(--gx-text-muted)' }}>No tasks yet — use the + button to add one.</div>
 
   const todayStr = toStr(new Date())
@@ -185,13 +191,11 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
         const isEditing = editingCat === cat
         return (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {/* colour swatch + picker */}
             <label title="Change colour" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
               <span style={{ width: 11, height: 11, borderRadius: 2, background: fill, flexShrink: 0, display: 'inline-block', border: '1px solid rgba(0,0,0,0.15)' }} />
               <input type="color" value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
                 style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
             </label>
-            {/* name — tap to rename */}
             {isEditing ? (
               <input
                 autoFocus
@@ -213,150 +217,204 @@ export default function CustomGantt({ tasks, viewMode = 'Month', categoryColors 
     </div>
   )
 
+  // ── shared chart body (headers + rows + bars) ────────────────────────────────
+  const chartBody = (showLabelsInBars) => (
+    <div style={{ position: 'relative', minWidth: totalW, flexShrink: 0 }}>
+      {/* Column headers */}
+      <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 2, background: 'var(--gx-surface)', height: HEADER_H, borderBottom: '2px solid var(--gx-border)' }}>
+        {columns.map((col, i) => (
+          <div key={i} style={{ width: colPx, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--gx-text-muted)', borderRight: '1px solid var(--gx-border)' }}>
+            {col.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Rows + bars */}
+      <div style={{ position: 'relative', width: totalW, height: tasks.length * ROW_H }}>
+        {/* Dependency arrows */}
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}>
+          <defs>
+            <marker id="dep-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+              <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(99,102,241,0.85)" strokeWidth="1.5" />
+            </marker>
+          </defs>
+          {tasks.map((task, toIdx) => {
+            if (!task.dependencies) return null
+            const depIds = task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
+            return depIds.map(depId => {
+              const fromIdx = tasks.findIndex(t => t.id === depId)
+              if (fromIdx < 0) return null
+              const fromTask = tasks[fromIdx]
+              const isDraggingFrom = dragState?.taskId === fromTask.id
+              const isDraggingTo = dragState?.taskId === task.id
+              let fs = fromTask.start, fe = fromTask.end
+              let ts = task.start, te = task.end
+              if (isDraggingFrom && dragRef.current) {
+                const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
+                if (type === 'move') { fs = addDays(origStart, d); fe = addDays(origEnd, d) }
+                else if (type === 'resize-end') { fe = addDays(origEnd, d) }
+              }
+              if (isDraggingTo && dragRef.current) {
+                const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
+                if (type === 'move') { ts = addDays(origStart, d); te = addDays(origEnd, d) }
+                else if (type === 'resize-start') { ts = addDays(origStart, d) }
+                else if (type === 'resize-end') { te = addDays(origEnd, d) }
+              }
+              const x1 = dateToX(fe, rangeStartStr, pxPerDay)
+              const y1 = fromIdx * ROW_H + ROW_H / 2
+              const x2 = dateToX(ts, rangeStartStr, pxPerDay)
+              const y2 = toIdx * ROW_H + ROW_H / 2
+
+              const MARGIN = 18
+              const APPROACH = 10
+              const STUB = 6
+
+              let arrowPath
+              if (x2 >= x1) {
+                const ex = Math.min(MARGIN, Math.max(2, (x2 - x1) / 2))
+                arrowPath = `M${x1},${y1} H${x1+ex} V${y2} H${x2}`
+              } else {
+                const leftApproach = Math.max(2, x2 - APPROACH)
+                if (toIdx > fromIdx) {
+                  const seam = fromIdx * ROW_H + ROW_H - 1
+                  arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
+                } else {
+                  const seam = (toIdx + 1) * ROW_H + 1
+                  arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
+                }
+              }
+              return (
+                <path key={`${depId}-${task.id}`}
+                  d={arrowPath}
+                  fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5"
+                  strokeDasharray="4 2" markerEnd="url(#dep-dot)"
+                />
+              )
+            })
+          })}
+        </svg>
+        {/* Grid lines */}
+        {columns.map((_, i) => (
+          <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: i * colPx, width: 1, background: 'var(--gx-border)' }} />
+        ))}
+        {/* Row stripes */}
+        {tasks.map((_, i) => (
+          <div key={i} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, borderBottom: '1px solid var(--gx-border)', background: i % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }} />
+        ))}
+        {/* Today line */}
+        {todayX > 0 && todayX < totalW && (
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: 'var(--gx-accent)', opacity: 0.5, zIndex: 1, pointerEvents: 'none' }} />
+        )}
+        {/* Bars */}
+        {tasks.map((task, rowIdx) => {
+          const isDragging = dragState?.taskId === task.id
+          let s = task.start, e = task.end
+          if (isDragging && dragRef.current) {
+            const { type, origStart, origEnd } = dragRef.current
+            const d = dragState.dxDays
+            if (type === 'move')              { s = addDays(origStart, d); e = addDays(origEnd, d) }
+            else if (type === 'resize-start') { s = addDays(origStart, d); if (s >= e) s = addDays(e, -1) }
+            else                              { e = addDays(origEnd,   d); if (e <= s) e = addDays(s, 1) }
+          }
+          const x = dateToX(s, rangeStartStr, pxPerDay)
+          const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
+          const fill = getCatColor(task.category)
+          const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
+          const progressW = w * ((task.progress ?? 0) / 100)
+
+          return (
+            <div key={task.id}
+              onTouchStart={ev => onTouchStart(ev, task)}
+              onMouseDown={ev => onMouseDown(ev, task)}
+              style={{
+                position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
+                borderRadius: 4, background: fill, cursor: isDragging ? 'grabbing' : 'grab',
+                boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.25)' : '0 1px 2px rgba(0,0,0,0.12)',
+                zIndex: isDragging ? 10 : 1, touchAction: 'none',
+                display: 'flex', alignItems: 'center', overflow: 'hidden',
+              }}
+            >
+              {progressW > 0 && <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.18)', borderRadius: '4px 0 0 4px' }} />}
+              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
+              {showLabelsInBars && (
+                <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
+                  {w > 40 ? task.name : ''}
+                </span>
+              )}
+              {!showLabelsInBars && <div style={{ flex: 1 }} />}
+              <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  // ── classic mode: left label column + scrollable chart ───────────────────────
+  if (labelMode === 'classic') {
+    return (
+      <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          {/* Left label column */}
+          <div
+            ref={labelColRef}
+            style={{
+              width: LABEL_W, flexShrink: 0,
+              overflowY: 'hidden', overflowX: 'hidden',
+              borderRight: '2px solid var(--gx-border)',
+              background: 'var(--gx-surface)',
+              display: 'flex', flexDirection: 'column',
+              zIndex: 3,
+            }}
+          >
+            {/* Header placeholder aligned with chart header */}
+            <div style={{ height: HEADER_H, borderBottom: '2px solid var(--gx-border)', flexShrink: 0 }} />
+            {/* Task name rows */}
+            {tasks.map((task, i) => (
+              <div
+                key={task.id}
+                onClick={() => onTaskClick?.(task.id)}
+                style={{
+                  height: ROW_H, flexShrink: 0,
+                  display: 'flex', alignItems: 'center',
+                  padding: '0 10px 0 12px',
+                  borderBottom: '1px solid var(--gx-border)',
+                  background: i % 2 === 0 ? 'var(--gx-surface)' : 'var(--gx-bg-alt)',
+                  cursor: 'pointer',
+                  fontSize: 12, fontWeight: 500, color: 'var(--gx-text)',
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart area */}
+          <div
+            ref={node => { scrollRef.current = node; if (scrollExportRef) scrollExportRef.current = node }}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onScroll={onChartScroll}
+            style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
+          >
+            {chartBody(false)}
+          </div>
+        </div>
+        {legend}
+      </div>
+    )
+  }
+
+  // ── inline mode (default) ────────────────────────────────────────────────────
   return (
     <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none', minHeight: 0 }}>
-      {/* Chart */}
       <div
         ref={node => { scrollRef.current = node; if (scrollExportRef) scrollExportRef.current = node }}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
       >
-        {/* Scrollable chart area */}
-        <div style={{ position: 'relative', minWidth: totalW, flexShrink: 0 }}>
-          {/* Column headers */}
-          <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 2, background: 'var(--gx-surface)', height: HEADER_H, borderBottom: '2px solid var(--gx-border)' }}>
-            {columns.map((col, i) => (
-              <div key={i} style={{ width: colPx, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--gx-text-muted)', borderRight: '1px solid var(--gx-border)' }}>
-                {col.label}
-              </div>
-            ))}
-          </div>
-
-          {/* Rows + bars */}
-          <div style={{ position: 'relative', width: totalW, height: tasks.length * ROW_H }}>
-            {/* Dependency arrows */}
-            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}>
-              <defs>
-                <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                  <path d="M0,0 L0,6 L6,3 z" fill="rgba(99,102,241,0.7)" />
-                </marker>
-              </defs>
-              {tasks.map((task, toIdx) => {
-                if (!task.dependencies) return null
-                const depIds = task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
-                return depIds.map(depId => {
-                  const fromIdx = tasks.findIndex(t => t.id === depId)
-                  if (fromIdx < 0) return null
-                  const fromTask = tasks[fromIdx]
-                  const isDraggingFrom = dragState?.taskId === fromTask.id
-                  const isDraggingTo = dragState?.taskId === task.id
-                  let fs = fromTask.start, fe = fromTask.end
-                  let ts = task.start, te = task.end
-                  if (isDraggingFrom && dragRef.current) {
-                    const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
-                    if (type === 'move') { fs = addDays(origStart, d); fe = addDays(origEnd, d) }
-                    else if (type === 'resize-end') { fe = addDays(origEnd, d) }
-                  }
-                  if (isDraggingTo && dragRef.current) {
-                    const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
-                    if (type === 'move') { ts = addDays(origStart, d); te = addDays(origEnd, d) }
-                    else if (type === 'resize-start') { ts = addDays(origStart, d) }
-                    else if (type === 'resize-end') { te = addDays(origEnd, d) }
-                  }
-                  const x1 = dateToX(fe, rangeStartStr, pxPerDay)
-                  const y1 = fromIdx * ROW_H + ROW_H / 2
-                  const x2 = dateToX(ts, rangeStartStr, pxPerDay)
-                  const y2 = toIdx * ROW_H + ROW_H / 2
-                  const x2end = dateToX(te, rangeStartStr, pxPerDay)
-
-                  const MARGIN = 18
-                  const APPROACH = 10
-                  const STUB = 6
-
-                  let arrowPath
-                  if (x2 >= x1) {
-                    // Normal forward: exit right, drop, arrive at dest left edge
-                    const ex = Math.min(MARGIN, Math.max(2, (x2 - x1) / 2))
-                    arrowPath = `M${x1},${y1} H${x1+ex} V${y2} H${x2}`
-                  } else {
-                    // Overlap: route through the inter-row seam so the line passes
-                    // above/below the bar rather than through it or looping far right
-                    const leftApproach = Math.max(2, x2 - APPROACH)
-                    if (toIdx > fromIdx) {
-                      // Dest below: exit right stub, drop to seam below predecessor row,
-                      // cut left above dest bar, drop into dest from the left
-                      const seam = fromIdx * ROW_H + ROW_H - 1
-                      arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
-                    } else {
-                      // Dest above: exit right stub, rise to seam below dest row,
-                      // cut left, rise into dest from the left
-                      const seam = (toIdx + 1) * ROW_H + 1
-                      arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
-                    }
-                  }
-                  return (
-                    <path key={`${depId}-${task.id}`}
-                      d={arrowPath}
-                      fill="none" stroke="rgba(99,102,241,0.6)" strokeWidth="1.5"
-                      strokeDasharray="4 2" markerEnd="url(#dep-arrow)"
-                    />
-                  )
-                })
-              })}
-            </svg>
-            {/* Grid lines */}
-            {columns.map((_, i) => (
-              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: i * colPx, width: 1, background: 'var(--gx-border)' }} />
-            ))}
-            {/* Row stripes */}
-            {tasks.map((_, i) => (
-              <div key={i} style={{ position: 'absolute', top: i * ROW_H, left: 0, right: 0, height: ROW_H, borderBottom: '1px solid var(--gx-border)', background: i % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }} />
-            ))}
-            {/* Today line */}
-            {todayX > 0 && todayX < totalW && (
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: 'var(--gx-accent)', opacity: 0.5, zIndex: 1, pointerEvents: 'none' }} />
-            )}
-            {/* Bars */}
-            {tasks.map((task, rowIdx) => {
-              const isDragging = dragState?.taskId === task.id
-              let s = task.start, e = task.end
-              if (isDragging && dragRef.current) {
-                const { type, origStart, origEnd, dxDays: _ } = dragRef.current
-                const d = dragState.dxDays
-                if (type === 'move')          { s = addDays(origStart, d); e = addDays(origEnd, d) }
-                else if (type === 'resize-start') { s = addDays(origStart, d); if (s >= e) s = addDays(e, -1) }
-                else                          { e = addDays(origEnd,   d); if (e <= s) e = addDays(s, 1) }
-              }
-              const x = dateToX(s, rangeStartStr, pxPerDay)
-              const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
-              const fill = getCatColor(task.category)
-              const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
-              const progressW = w * ((task.progress ?? 0) / 100)
-
-              return (
-                <div key={task.id}
-                  onTouchStart={ev => onTouchStart(ev, task)}
-                  onMouseDown={ev => onMouseDown(ev, task)}
-                  style={{
-                    position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
-                    borderRadius: 4, background: fill, cursor: isDragging ? 'grabbing' : 'grab',
-                    boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.25)' : '0 1px 2px rgba(0,0,0,0.12)',
-                    zIndex: isDragging ? 10 : 1, touchAction: 'none',
-                    display: 'flex', alignItems: 'center', overflow: 'hidden',
-                  }}
-                >
-                  {progressW > 0 && <div style={{ position: 'absolute', top: 0, left: 0, width: progressW, height: '100%', background: 'rgba(0,0,0,0.18)', borderRadius: '4px 0 0 4px' }} />}
-                  <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
-                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', pointerEvents: 'none' }}>
-                    {w > 40 ? task.name : ''}
-                  </span>
-                  <div style={{ width: EDGE_PX, height: '100%', flexShrink: 0, cursor: 'ew-resize' }} />
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        {chartBody(true)}
       </div>
       {legend}
     </div>
