@@ -79,20 +79,26 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   const BAR_Y = Math.round((ROW_H - BAR_H) / 2)
 
   function startLabelResize(e) {
-    const startX = e.clientX
+    const isTouch = e.type === 'touchstart'
+    const startX = isTouch ? e.touches[0].clientX : e.clientX
     const startW = labelWidth
+    let lastW = startW
     function onMove(ev) {
-      lastW = Math.max(60, Math.min(window.innerWidth * 0.6, startW + ev.clientX - startX))
+      const x = ev.touches ? ev.touches[0].clientX : ev.clientX
+      lastW = Math.max(60, Math.min(window.innerWidth * 0.6, startW + x - startX))
       setLabelWidth(lastW)
     }
-    let lastW = startW
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
       try { localStorage.setItem('gantt-labelWidth', lastW) } catch {}
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
     e.preventDefault()
   }
 
@@ -457,6 +463,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
             {/* Resize handle */}
             <div
               onMouseDown={startLabelResize}
+              onTouchStart={startLabelResize}
               style={{
                 position: 'absolute', right: 0, top: 0, bottom: 0, width: 6,
                 cursor: 'col-resize', zIndex: 4,

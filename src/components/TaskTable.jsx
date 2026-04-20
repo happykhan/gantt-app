@@ -119,16 +119,20 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
   const [colWidths, setColWidths] = useState(loadColWidths)
 
   function startColResize(key, e) {
-    const startX = e.clientX
+    const isTouch = e.type === 'touchstart'
+    const startX = isTouch ? e.touches[0].clientX : e.clientX
     const startW = colWidths[key]
     let lastW = startW
     function onMove(ev) {
-      lastW = Math.max(40, startW + ev.clientX - startX)
+      const x = ev.touches ? ev.touches[0].clientX : ev.clientX
+      lastW = Math.max(40, startW + x - startX)
       setColWidths(prev => ({ ...prev, [key]: lastW }))
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
       setColWidths(prev => {
         const next = { ...prev, [key]: lastW }
         try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch {}
@@ -137,6 +141,8 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
     e.preventDefault()
     e.stopPropagation()
   }
@@ -165,6 +171,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
           <div
             onMouseDown={e => startColResize(colKey, e)}
+            onTouchStart={e => startColResize(colKey, e)}
             style={{
               position: 'absolute', right: -4, top: -6, bottom: -6, width: 8,
               cursor: 'col-resize', zIndex: 3,

@@ -311,20 +311,26 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   async function exportSVG() { await captureExport(toSvg, 'gantt.svg') }
 
   function startTableResize(e) {
-    const startY = e.clientY
+    const isTouch = e.type === 'touchstart'
+    const startY = isTouch ? e.touches[0].clientY : e.clientY
     const startH = tableHeight
     let lastH = startH
     function onMove(ev) {
-      lastH = Math.max(80, Math.min(600, startH - (ev.clientY - startY)))
+      const y = ev.touches ? ev.touches[0].clientY : ev.clientY
+      lastH = Math.max(80, Math.min(600, startH - (y - startY)))
       setTableHeight(lastH)
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
       try { localStorage.setItem('gantt-tableHeight', lastH) } catch {}
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
     e.preventDefault()
   }
 
@@ -468,6 +474,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             {/* Resize handle */}
             <div
               onMouseDown={startTableResize}
+              onTouchStart={startTableResize}
               style={{
                 height: 6, cursor: 'row-resize', flexShrink: 0,
                 background: 'var(--gx-border)',
