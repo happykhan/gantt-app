@@ -32,7 +32,7 @@ function loadInitial() {
 
 function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
   const [viewMode, setViewMode] = useState(() => {
-    try { return localStorage.getItem('gantt-viewMode') || (window.innerWidth < 768 ? 'Year' : 'Quarter') } catch { return 'Quarter' }
+    try { return localStorage.getItem('gantt-viewMode') || (window.innerWidth < 900 ? 'Year' : 'Quarter') } catch { return 'Quarter' }
   })
   const [labelMode, setLabelMode] = useState(() => {
     try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
@@ -57,11 +57,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     try { return parseInt(localStorage.getItem('gantt-exportScale'), 10) || 2 } catch { return 2 }
   })
   const [showSettings, setShowSettings] = useState(false)
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
   const [showMore, setShowMore] = useState(false)
 
   useEffect(() => {
-    function onResize() { setIsMobile(window.innerWidth < 768) }
+    function onResize() { setIsMobile(window.innerWidth < 900) }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -109,7 +109,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     cats.forEach((cat, i) => { next[cat] = palette[i % palette.length] })
     setCategoryColors(next)
   }
-  const [showTable, setShowTable] = useState(() => window.innerWidth >= 768)
+  const [showTable, setShowTable] = useState(() => window.innerWidth >= 900)
   const [tableHeight, setTableHeight] = useState(() => {
     try { return parseInt(localStorage.getItem('gantt-tableHeight'), 10) || 240 } catch { return 240 }
   })
