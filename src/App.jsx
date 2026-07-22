@@ -7,6 +7,7 @@ import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
 import WorkflowMenu, { MenuButton, MenuDivider, MenuLabel } from './components/WorkflowMenu'
+import Modal from './components/Modal'
 import { generateSampleData } from './utils/parseInput'
 import { chooseResponsiveViewMode, clampZoom } from './utils/viewDefaults'
 
@@ -182,13 +183,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   // Keyboard shortcuts for selected task
   useEffect(() => {
     function onKeyDown(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.target.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         undo(); e.preventDefault(); return
       }
       if (!selectedId) return
       if (e.key === 'Delete' || e.key === 'Backspace') {
         handleDelete(selectedId)
+        e.preventDefault()
       } else if (e.key === 'Escape') {
         setSelectedId(null)
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -413,6 +415,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     e.preventDefault()
   }
 
+  function resizeTableWithKeyboard(delta) {
+    setTableHeight(height => {
+      const next = Math.max(80, Math.min(600, height + delta))
+      try { localStorage.setItem('gantt-tableHeight', next) } catch { /* Preferences are best-effort. */ }
+      return next
+    })
+  }
+
   const ZOOM_STEP = 0.25, ZOOM_MIN = 0.4, ZOOM_MAX = 2
   function fitProject() {
     const scroller = ganttScrollRef.current
@@ -454,7 +464,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             }}
             className="gx-btn gx-btn-secondary workflow-action dependencies-action"
             disabled={!tasks.length}
-            aria-label="Dependencies"
+            aria-label={selectedTask ? `Edit dependencies for ${selectedTask.name}` : 'Dependencies: select a task first'}
           >
             <span className="desktop-action-label">Dependencies</span><span className="mobile-action-label">Deps</span>
           </button>
@@ -486,7 +496,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
           <WorkflowMenu label="Project">
             <MenuButton onClick={saveProject}>Save project file</MenuButton>
-            <label className="workflow-menu-item file-menu-item" role="menuitem">
+            <label className="workflow-menu-item file-menu-item" role="menuitem" tabIndex={0}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  event.currentTarget.querySelector('input')?.click()
+                }
+              }}>
               Open project file
               <input type="file" accept=".json" onChange={event => { loadProject(event.target.files[0]); event.target.value = '' }} />
             </label>
@@ -517,10 +533,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 placeholder="Add project title"
                 style={{ width: '100%', fontSize: 15, fontWeight: 600, border: 'none', borderBottom: '2px solid var(--gx-accent)', outline: 'none', background: 'transparent', color: 'var(--gx-text)', padding: '2px 0' }} />
             ) : (
-              <div onClick={() => setEditingTitle(true)} title="Select to set the project title"
-                style={{ fontSize: 15, fontWeight: 600, color: chartTitle ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: 'text', minHeight: 24 }}>
+              <button type="button" onClick={() => setEditingTitle(true)} className="chart-title-button" title="Edit project title"
+                aria-label={chartTitle ? `Edit project title: ${chartTitle}` : 'Add project title'}>
                 {chartTitle || 'Add project title'}
-              </div>
+              </button>
             )}
             {tasks.length > 0 && (
               <span className="chart-heading-hint">
@@ -572,6 +588,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                     setSelectedId(id)
                     setEditingTaskId(id)
                   }}
+                  onTaskSelect={setSelectedId}
                   onRenameCategory={handleRenameCategory}
                   exportRef={ganttExportRef}
                   scrollExportRef={ganttScrollRef}
@@ -589,12 +606,12 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             style={{
               position: 'absolute', bottom: 20, right: 20,
               minWidth: 52, height: 52, borderRadius: 26, padding: '0 18px',
-              background: 'var(--gx-accent)', color: '#fff',
+              background: '#0f766e', color: '#fff',
               border: 'none', lineHeight: 1, cursor: 'pointer',
               boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, zIndex: 10,
               fontSize: 14, fontWeight: 700,
-            }} title="Add task"><span style={{ fontSize: 24 }}>+</span><span className="fab-label">Task</span></button>
+            }} title="Add task" aria-label="Add task"><span aria-hidden="true" style={{ fontSize: 24 }}>+</span><span className="fab-label">Task</span></button>
           )}
         </main>
 
@@ -605,6 +622,18 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             <div
               onMouseDown={startTableResize}
               onTouchStart={startTableResize}
+              onKeyDown={event => {
+                if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+                event.preventDefault()
+                resizeTableWithKeyboard(event.key === 'ArrowUp' ? 20 : -20)
+              }}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize task table"
+              aria-valuemin={80}
+              aria-valuemax={600}
+              aria-valuenow={tableHeight}
+              tabIndex={0}
               style={{
                 height: isMobile ? 20 : 8, cursor: 'row-resize', flexShrink: 0,
                 background: 'var(--gx-border)',
@@ -641,28 +670,34 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
       {/* Confirm clear modal */}
       {confirmClear && (
-        <>
-          <div onClick={() => setConfirmClear(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '28px 28px 24px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Clear all tasks?</h3>
-            <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>This will remove all tasks and the chart title. This cannot be undone.</p>
+        <Modal
+          titleId="clear-project-title"
+          descriptionId="clear-project-description"
+          onClose={() => setConfirmClear(false)}
+          style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--gx-surface)', borderRadius: 12, padding: '28px 28px 24px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}
+        >
+            <h3 id="clear-project-title" style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Clear all tasks?</h3>
+            <p id="clear-project-description" style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>This will remove all tasks and the chart title. This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={handleClear} style={{ flex: 1, padding: '10px', fontSize: 14, background: 'var(--gx-error)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Clear all</button>
-              <button onClick={() => setConfirmClear(false)} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 14 }}>Cancel</button>
+              <button data-dialog-initial-focus onClick={() => setConfirmClear(false)} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 14 }}>Cancel</button>
             </div>
-          </div>
-        </>
+        </Modal>
       )}
 
       {/* Settings modal */}
       {showSettings && (
-        <>
-          <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 340, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+        <Modal
+          titleId="display-settings-title"
+          descriptionId="display-settings-description"
+          onClose={() => setShowSettings(false)}
+          style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 340, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}
+        >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Display settings</h3>
-              <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              <h3 id="display-settings-title" style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Display settings</h3>
+              <button data-dialog-initial-focus aria-label="Close display settings" onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
+            <p id="display-settings-description" className="sr-only">Adjust chart density, typography, colours and export resolution.</p>
 
             {/* Row density */}
             <div style={{ marginBottom: 18 }}>
@@ -673,7 +708,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   { d: 'normal',   tip: 'Normal: default row height' },
                   { d: 'spacious', tip: 'Spacious: taller rows, easier to click on touch devices' },
                 ].map(({ d, tip }) => (
-                  <button key={d} onClick={() => setDisplayDensity(d)} title={tip}
+                  <button key={d} onClick={() => setDisplayDensity(d)} title={tip} aria-pressed={displayDensity === d}
                     className={displayDensity === d ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, textTransform: 'capitalize' }}>{d}</button>
                 ))}
@@ -683,7 +718,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             {/* Font family */}
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Chart font</div>
-              <select value={chartFont} onChange={e => setChartFont(e.target.value)} style={selectStyle}>
+              <select aria-label="Chart font" value={chartFont} onChange={e => setChartFont(e.target.value)} style={selectStyle}>
                 <option value="inherit">Default (theme)</option>
                 <option value="Inter, system-ui, sans-serif">Inter</option>
                 <option value="Arial, sans-serif">Arial</option>
@@ -697,14 +732,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Font size</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setChartFontSize(s => Math.max(6, s - 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>−</button>
+                <button aria-label="Decrease chart font size" onClick={() => setChartFontSize(s => Math.max(6, s - 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>−</button>
                 <input
                   type="number" min={6} max={32}
+                  aria-label="Chart font size in pixels"
                   value={chartFontSize}
                   onChange={e => { const v = parseInt(e.target.value, 10); if (v >= 6 && v <= 32) setChartFontSize(v) }}
                   style={{ ...selectStyle, width: 64, textAlign: 'center', padding: '8px 6px' }}
                 />
-                <button onClick={() => setChartFontSize(s => Math.min(32, s + 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>+</button>
+                <button aria-label="Increase chart font size" onClick={() => setChartFontSize(s => Math.min(32, s + 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>+</button>
                 <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>px</span>
               </div>
             </div>
@@ -716,6 +752,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 {Object.entries(PALETTES).map(([name, colours]) => (
                   <button
                     key={name}
+                    aria-label={`Apply ${name} colour palette`}
                     onClick={() => applyPalette(name)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
@@ -727,7 +764,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                     onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--gx-border)'}
                   >
                     <span style={{ fontSize: 12, color: 'var(--gx-text)', width: 72, flexShrink: 0, textTransform: 'capitalize' }}>{name === 'default' ? 'Default' : name.charAt(0).toUpperCase() + name.slice(1)}</span>
-                    <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+                    <div aria-hidden="true" style={{ display: 'flex', gap: 3, flex: 1 }}>
                       {colours.slice(0, 8).map((c, i) => (
                         <span key={i} style={{ flex: 1, height: 16, borderRadius: 3, background: c }} />
                       ))}
@@ -748,7 +785,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   { scale: 3, label: '3×', note: 'sharp',   tip: '3× — crisp on high-DPI displays' },
                   { scale: 4, label: '4×', note: 'print',   tip: '4× — best for print, largest file' },
                 ].map(({ scale, label, note, tip }) => (
-                  <button key={scale} onClick={() => setExportScale(scale)} title={tip}
+                  <button key={scale} onClick={() => setExportScale(scale)} title={tip} aria-label={`Use ${scale} times ${note} PNG export resolution`} aria-pressed={exportScale === scale}
                     className={exportScale === scale ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                   >
@@ -760,19 +797,22 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             </div>
 
             <button onClick={() => setShowSettings(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Done</button>
-          </div>
-        </>
+        </Modal>
       )}
 
       {/* Help modal */}
       {showHelp && (
-        <>
-          <div onClick={() => setShowHelp(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 400, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
+        <Modal
+          titleId="help-title"
+          descriptionId="help-description"
+          onClose={() => setShowHelp(false)}
+          style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--gx-surface)', borderRadius: 12, padding: '24px 24px 20px', width: 400, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}
+        >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Help &amp; shortcuts</h3>
-              <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              <h3 id="help-title" style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gx-text)' }}>Help &amp; shortcuts</h3>
+              <button data-dialog-initial-focus aria-label="Close help and shortcuts" onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
+            <p id="help-description" className="sr-only">Keyboard commands and guidance for editing and exporting a project.</p>
 
             {[
               {
@@ -837,8 +877,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             ))}
 
             <button onClick={() => setShowHelp(false)} className="gx-btn gx-btn-secondary" style={{ width: '100%', padding: '10px', fontSize: 14 }}>Close</button>
-          </div>
-        </>
+        </Modal>
       )}
 
       {/* Bottom sheet (mobile task editor) */}

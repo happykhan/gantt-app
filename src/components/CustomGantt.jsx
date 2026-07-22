@@ -55,14 +55,22 @@ const EDGE_PX = 14
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
-function isLight(hex) {
-  const h = hex.replace('#','')
-  const [r,g,b] = [0,2,4].map(i => parseInt(h.slice(i,i+2),16))
-  return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.55
+function textColorFor(hex) {
+  const raw = hex.replace('#', '')
+  const h = raw.length === 3 ? raw.split('').map(char => char + char).join('') : raw
+  if (!/^[0-9a-f]{6}$/i.test(h)) return '#111827'
+  const channels = [0, 2, 4].map(index => {
+    const value = parseInt(h.slice(index, index + 2), 16) / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+  const whiteContrast = 1.05 / (luminance + 0.05)
+  const darkContrast = (luminance + 0.05) / 0.05
+  return whiteContrast >= darkContrast ? '#fff' : '#000'
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onTaskSelect, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
@@ -231,6 +239,24 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     if (labelColRef.current) labelColRef.current.scrollTop = e.currentTarget.scrollTop
   }, [])
 
+  function taskAccessibleName(task) {
+    const dependencies = task.dependencies?.split(',').map(value => value.trim()).filter(Boolean).length || 0
+    return `${task.name}, ${task.start} to ${task.end}, ${task.progress ?? 0}% complete${dependencies ? `, ${dependencies} ${dependencies === 1 ? 'dependency' : 'dependencies'}` : ', no dependencies'}`
+  }
+
+  function onTaskKeyDown(event, task) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.stopPropagation()
+      onTaskClick?.(task.id)
+    } else if (event.key === 'F2') {
+      event.preventDefault()
+      event.stopPropagation()
+      setInlineEditId(task.id)
+      setInlineEditVal(task.name)
+    }
+  }
+
   if (!tasks.length) return <div style={{ padding: 24, color: 'var(--gx-text-muted)' }}>No tasks yet — use the + button to add one.</div>
 
   const todayStr = toStr(new Date())
@@ -243,9 +269,9 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
         const isEditing = editingCat === cat
         return (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <label title="Change colour" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
+            <label title={`Change colour for ${cat}`} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
               <span style={{ width: 11, height: 11, borderRadius: 2, background: fill, flexShrink: 0, display: 'inline-block', border: '1px solid rgba(0,0,0,0.15)' }} />
-              <input type="color" value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
+              <input type="color" aria-label={`Change colour for ${cat}`} value={fill} onChange={e => onColorChange?.(cat, e.target.value)}
                 style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
             </label>
             {isEditing ? (
@@ -257,11 +283,11 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingCat(null) }}
               />
             ) : (
-              <span
+              <button type="button"
                 onClick={() => setEditingCat(cat)}
-                title="Tap to rename"
-                style={{ fontSize: 12, color: 'var(--gx-text-muted)', cursor: 'text', borderBottom: '1px dashed var(--gx-border)' }}
-              >{cat}</span>
+                title={`Rename category ${cat}`}
+                className="category-name-button"
+              >{cat}</button>
             )}
           </div>
         )
@@ -383,8 +409,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 data-end={task.end}
                 onTouchStart={ev => onTouchStart(ev, task)}
                 onMouseDown={ev => onMouseDown(ev, task)}
+                onFocus={() => onTaskSelect?.(task.id)}
+                onKeyDown={event => onTaskKeyDown(event, task)}
                 title={task.name}
-                aria-label={`Task: ${task.name}`}
+                aria-label={taskAccessibleName(task)}
+                aria-pressed={isSelected}
+                role="button"
+                tabIndex={0}
                 style={{
                   position: 'absolute',
                   left: x - sz / 2, top: rowIdx * ROW_H + BAR_Y,
@@ -392,6 +423,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   background: fill,
                   transform: 'rotate(45deg)',
                   cursor: 'pointer', zIndex: isSelected ? 3 : 1, touchAction: isMobile ? 'pan-x pan-y' : 'none',
+                  border: '2px solid var(--gx-text)',
                   boxShadow: isSelected ? '0 0 0 3px var(--gx-surface), 0 0 0 6px var(--gx-accent)' : '0 1px 3px rgba(0,0,0,0.25)',
                 }}
               />
@@ -399,7 +431,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           }
 
           const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
-          const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
+          const textCol = textColorFor(fill)
           const progressW = w * ((task.progress ?? 0) / 100)
           const isSelected = selectedId === task.id
 
@@ -412,13 +444,20 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               data-end={task.end}
               onTouchStart={ev => onTouchStart(ev, task)}
               onMouseDown={ev => isInlineEditing ? undefined : onMouseDown(ev, task)}
+              onFocus={() => onTaskSelect?.(task.id)}
+              onKeyDown={event => {
+                if (!isInlineEditing) onTaskKeyDown(event, task)
+              }}
               onDoubleClick={ev => {
                 ev.stopPropagation()
                 setInlineEditId(task.id)
                 setInlineEditVal(task.name)
               }}
               title={`${task.name}. ${task.start} to ${task.end}`}
-              aria-label={`Task: ${task.name}`}
+              aria-label={isInlineEditing ? undefined : taskAccessibleName(task)}
+              aria-pressed={isInlineEditing ? undefined : isSelected}
+              role={isInlineEditing ? undefined : 'button'}
+              tabIndex={isInlineEditing ? -1 : 0}
               style={{
                 position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
                 borderRadius: 4, background: fill, cursor: isInlineEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
@@ -487,7 +526,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <div
                 key={task.id}
                 onClick={() => onTaskClick?.(task.id)}
+                onFocus={() => onTaskSelect?.(task.id)}
+                onKeyDown={event => onTaskKeyDown(event, task)}
                 onDoubleClick={() => { setInlineEditId(task.id); setInlineEditVal(task.name) }}
+                role={inlineEditId === task.id ? undefined : 'button'}
+                tabIndex={inlineEditId === task.id ? -1 : 0}
+                aria-label={inlineEditId === task.id ? undefined : taskAccessibleName(task)}
+                aria-pressed={inlineEditId === task.id ? undefined : selectedId === task.id}
                 style={{
                   height: ROW_H, flexShrink: 0,
                   display: 'flex', alignItems: 'center',
@@ -532,6 +577,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               title="Drag to resize"
+              aria-hidden="true"
             >
               {isMobile && <div style={{ width: 3, height: 32, borderRadius: 2, background: 'var(--gx-text-muted)', opacity: 0.5 }} />}
             </div>

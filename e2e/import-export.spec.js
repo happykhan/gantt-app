@@ -5,7 +5,7 @@ import { openEmpty, openProject, twoTaskProject } from './fixtures.js'
 
 async function openFileImport(page) {
   await page.getByRole('button', { name: 'Import', exact: true }).click()
-  await page.getByRole('button', { name: 'Upload file' }).click()
+  await page.getByRole('tab', { name: 'Upload file' }).click()
   return page.locator('input[type="file"][accept*=".xlsx"]')
 }
 
