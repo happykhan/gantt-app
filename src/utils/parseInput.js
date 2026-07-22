@@ -1,5 +1,4 @@
 import Papa from 'papaparse'
-import * as XLSX from 'xlsx'
 import { isIsoDate, isValidColour, validateProject } from './projectSchema'
 
 const ALIASES = {
@@ -32,8 +31,11 @@ function calendarDate(year, month, day) {
 
 export function parseDateValue(rawValue) {
   if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
-    const parsed = XLSX.SSF.parse_date_code(rawValue)
-    const value = parsed && calendarDate(parsed.y, parsed.m, parsed.d)
+    const excelEpoch = Date.UTC(1899, 11, 30)
+    const parsed = new Date(excelEpoch + Math.floor(rawValue) * 86_400_000)
+    const value = Number.isNaN(parsed.getTime())
+      ? null
+      : calendarDate(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, parsed.getUTCDate())
     return value
       ? { value, error: null }
       : { value: '', error: 'is not a valid Excel date serial' }
@@ -206,13 +208,9 @@ export function parseTableData(inputRows) {
   }
 }
 
-export function parseExcelFile(buffer) {
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false })
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  if (!sheet) {
-    return { tasks: [], categoryColors: {}, errors: [{ row: null, field: 'file', message: 'The workbook has no worksheets.' }] }
-  }
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true })
+export async function parseExcelFile(buffer) {
+  const { spreadsheetRows } = await import('./parseSpreadsheet')
+  const rows = spreadsheetRows(buffer)
   return parseTableData(rows)
 }
 

@@ -108,9 +108,9 @@ export default function ImportModal({ onLoad, onClose }) {
       return
     }
 
-    reader.onload = event => {
+    reader.onload = async event => {
       try {
-        setPreview(makeTablePreview(parseExcelFile(new Uint8Array(event.target.result))))
+        setPreview(makeTablePreview(await parseExcelFile(new Uint8Array(event.target.result))))
       } catch (caught) {
         setFileError(`Could not parse file: ${caught instanceof Error ? caught.message : 'unknown error'}`)
       }

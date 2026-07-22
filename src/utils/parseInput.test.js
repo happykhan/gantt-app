@@ -86,8 +86,8 @@ describe('parsePastedText', () => {
 })
 
 describe('parseExcelFile', () => {
-  it('converts Excel date serials into ISO dates', () => {
-    const result = parseExcelFile(makeXlsx([
+  it('converts Excel date serials into ISO dates', async () => {
+    const result = await parseExcelFile(makeXlsx([
       ['Task ID', 'Task Name', 'Start', 'End'],
       ['excel', 'Excel dates', 46115, 46142],
     ]))
@@ -97,8 +97,8 @@ describe('parseExcelFile', () => {
     expect(result.tasks[0].end).toBe('2026-04-30')
   })
 
-  it('accepts valid numeric progress', () => {
-    const result = parseExcelFile(makeXlsx([
+  it('accepts valid numeric progress', async () => {
+    const result = await parseExcelFile(makeXlsx([
       ['Task Name', 'Start', 'End', '% Complete'],
       ['Task A', '2026-01-01', '2026-06-01', 75],
     ]))

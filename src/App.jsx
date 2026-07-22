@@ -63,12 +63,23 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   const [activeDialog, setActiveDialog] = useState(null)
   const exportRef = useRef(null)
   const scrollRef = useRef(null)
+  const rowHeight = ROW_HEIGHTS[displayDensity] || ROW_HEIGHTS.normal
   const categories = useMemo(() => getCategories(tasks), [tasks])
   const dependencyGraph = useMemo(() => validateDependencyGraph(tasks), [tasks])
   const selectedTask = tasks.find(task => task.id === selectedId)
   const editingTask = tasks.find(task => task.id === editingTaskId)
   const { feedback, notify } = useFeedback()
-  const { exportPng, exportSvg, exportPdf } = useChartExport({ exportRef, chartTitle, chartFont, exportScale, notify })
+  const { exportPng, exportSvg, exportPdf } = useChartExport({
+    tasks,
+    chartTitle,
+    viewMode,
+    rowHeight,
+    chartFont,
+    chartFontSize,
+    categoryColors,
+    exportScale,
+    notify,
+  })
 
   const handleTaskChange = useCallback((taskId, changes) => {
     const nextTasks = updateTask(tasks, taskId, changes)
@@ -239,7 +250,7 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
         zoom={zoom}
         viewMode={viewMode}
         labelMode={labelMode}
-        rowHeight={ROW_HEIGHTS[displayDensity] || ROW_HEIGHTS.normal}
+        rowHeight={rowHeight}
         barFontSize={chartFontSize}
         chartFont={chartFont}
         categoryColors={categoryColors}
