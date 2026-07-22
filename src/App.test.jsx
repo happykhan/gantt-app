@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 const savedProject = {
@@ -23,6 +23,10 @@ describe('App project workflow', () => {
     localStorage.clear()
     localStorage.setItem('gantt-app-v1', JSON.stringify(savedProject))
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('edits a task and persists the change in local storage', async () => {
@@ -51,6 +55,32 @@ describe('App project workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }))
     expect(screen.getByRole('button', { name: 'PNG' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'SVG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PDF' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PDF fit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PDF landscape' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PDF tiled' })).toBeInTheDocument()
+  })
+
+  it('shows export failures in the app instead of opening a browser alert', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => { throw new Error('Storage is unavailable') })
+    const browserAlert = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SVG' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Export failed: Storage is unavailable')
+    expect(browserAlert).not.toHaveBeenCalled()
+  })
+
+  it('explains why an empty chart cannot be exported', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    localStorage.clear()
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SVG' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Add at least one task before exporting.')
   })
 })

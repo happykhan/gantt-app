@@ -37,9 +37,9 @@ export default function InputPanel({ onLoad }) {
 
     // Excel / CSV
     const reader = new FileReader()
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
-        const tasks = parseExcelFile(new Uint8Array(e.target.result))
+        const tasks = await parseExcelFile(new Uint8Array(e.target.result))
         if (!tasks.length) { setError('No tasks found — check your column headers'); return }
         onLoad(tasks)
       } catch (err) {

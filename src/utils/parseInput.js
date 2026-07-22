@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx'
-
 // Column name aliases
 const ALIASES = {
   name: ['task', 'task name', 'name', 'activity', 'item', 'work package', 'wp', 'title', 'description'],
@@ -27,8 +25,8 @@ function parseDate(val) {
   if (!val && val !== 0) return null
   // Excel serial date (number)
   if (typeof val === 'number') {
-    const d = XLSX.SSF.parse_date_code(val)
-    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(val) * 86400000)
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10)
   }
   const s = String(val).trim()
   if (!s) return null
@@ -156,10 +154,9 @@ function parseTableData(rows) {
   return rowsToTasks(dataRows, colMap)
 }
 
-export function parseExcelFile(buffer) {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: false })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+export async function parseExcelFile(buffer) {
+  const { spreadsheetRows } = await import('./parseSpreadsheet')
+  const rows = spreadsheetRows(buffer)
   return parseTableData(rows)
 }
 

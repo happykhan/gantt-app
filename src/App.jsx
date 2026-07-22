@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
-import { toPng } from 'html-to-image'
 import CustomGantt from './components/CustomGantt'
 import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
 import { generateSampleData } from './utils/parseInput'
+import { downloadBlob, rasteriseSvg } from './utils/exportBrowser'
+import { exportFilename, readExportTheme, renderChartSvg } from './utils/exportChart'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
@@ -57,6 +58,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
   const [showMore, setShowMore] = useState(false)
   const [showExport, setShowExport] = useState(false)
+  const [exportError, setExportError] = useState('')
 
   useEffect(() => {
     function onResize() { setIsMobile(window.innerWidth < 900) }
@@ -112,8 +114,6 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     try { return parseInt(localStorage.getItem('gantt-tableHeight'), 10) || 240 } catch { return 240 }
   })
   const ganttAreaRef = useRef()
-  const ganttExportRef = useRef()
-  const ganttScrollRef = useRef()
   const undoStack = useRef([])
 
   const [canUndo, setCanUndo] = useState(false)
@@ -250,110 +250,45 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     }
     reader.readAsText(file)
   }
-  // Shared: expand overflow, inject title, capture PNG, restore — returns data URL or null
-  async function capturePng() {
-    const outer = ganttExportRef.current
-    if (!outer) return null
-
-    let titleEl = null
-    if (chartTitle) {
-      titleEl = document.createElement('div')
-      const ff = chartFont === 'inherit' ? 'system-ui, sans-serif' : chartFont
-      titleEl.style.cssText = `padding: 10px 16px 8px; font-size: 18px; font-weight: 700; color: #1e293b; background: #ffffff; flex-shrink: 0; font-family: ${ff};`
-      titleEl.textContent = chartTitle
-      outer.insertBefore(titleEl, outer.firstChild)
-    }
-
-    const CLIP = new Set(['hidden', 'auto', 'scroll', 'clip'])
-    const clips = [outer, ...outer.querySelectorAll('*')].filter(el => {
-      const s = getComputedStyle(el)
-      if (s.textOverflow === 'ellipsis') return false
-      return CLIP.has(s.overflow) || CLIP.has(s.overflowX) || CLIP.has(s.overflowY)
+  function createExportChart() {
+    return renderChartSvg({
+      tasks,
+      title: chartTitle,
+      viewMode,
+      rowHeight,
+      fontSize: barFontSize,
+      fontFamily: chartFont === 'inherit' ? 'system-ui, sans-serif' : chartFont,
+      categoryColors,
+      theme: readExportTheme(),
     })
-    const saved = clips.map(el => ({
-      el, overflow: el.style.overflow, overflowX: el.style.overflowX, overflowY: el.style.overflowY,
-      height: el.style.height, maxHeight: el.style.maxHeight,
-    }))
-    clips.forEach(el => {
-      el.style.overflow = 'visible'; el.style.overflowX = 'visible'; el.style.overflowY = 'visible'
-      el.style.maxHeight = 'none'
-      const inlineH = el.style.height
-      if (!inlineH || inlineH === 'auto' || inlineH.endsWith('%')) el.style.height = 'auto'
-    })
+  }
 
-    const w = outer.scrollWidth
-    const h = outer.scrollHeight
-
+  async function runExport(action) {
+    setExportError('')
     try {
-      const MAX_W = 4800
-      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--gx-bg').trim() || '#ffffff'
-      let pngUrl = await toPng(outer, { backgroundColor: bgColor, pixelRatio: exportScale, width: w, height: h })
-      if (w * exportScale > MAX_W) {
-        const scale = MAX_W / (w * exportScale)
-        const img = new Image(); img.src = pngUrl
-        await new Promise(r => { img.onload = r })
-        const canvas = document.createElement('canvas')
-        canvas.width = MAX_W
-        canvas.height = Math.round(h * exportScale * scale)
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        pngUrl = canvas.toDataURL('image/png')
-      }
-      return pngUrl
-    } catch (e) {
-      console.error(e); alert('Export failed — try zooming to 100% first.'); return null
-    } finally {
-      saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
-        el.style.overflow = overflow; el.style.overflowX = overflowX; el.style.overflowY = overflowY
-        el.style.height = height; el.style.maxHeight = maxHeight
-      })
-      if (titleEl) outer.removeChild(titleEl)
+      await action()
+    } catch (error) {
+      console.error(error)
+      setExportError(error instanceof Error ? error.message : 'Export failed. Please try again.')
     }
   }
 
   async function exportPNG() {
-    const pngUrl = await capturePng()
-    if (!pngUrl) return
-    const a = document.createElement('a'); a.href = pngUrl; a.download = 'gantt.png'; a.click()
+    const chart = createExportChart()
+    const pngUrl = await rasteriseSvg(chart.svg, chart.width, chart.height, exportScale)
+    const response = await fetch(pngUrl)
+    downloadBlob(await response.blob(), exportFilename(chartTitle, tasks, 'png'))
   }
 
   async function exportSVG() {
-    const pngUrl = await capturePng()
-    if (!pngUrl) return
-    const img = new Image(); img.src = pngUrl
-    await new Promise(r => { img.onload = r })
-    const pw = img.naturalWidth, ph = img.naturalHeight
-    const svgStr = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${pw}" height="${ph}" viewBox="0 0 ${pw} ${ph}">`,
-      `  <image xlink:href="${pngUrl}" x="0" y="0" width="${pw}" height="${ph}"/>`,
-      '</svg>',
-    ].join('\n')
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'gantt.svg'; a.click(); URL.revokeObjectURL(url)
+    const { svg } = createExportChart()
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), exportFilename(chartTitle, tasks, 'svg'))
   }
 
-  async function exportPDF() {
-    const pngUrl = await capturePng()
-    if (!pngUrl) return
-    const { jsPDF } = await import('jspdf')
-    const img = new Image(); img.src = pngUrl
-    await new Promise(r => { img.onload = r })
-    const pw = img.naturalWidth, ph = img.naturalHeight
-    const landscape = pw > ph
-    const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' })
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const margin = 10
-    const availW = pageW - 2 * margin
-    const availH = pageH - 2 * margin
-    const aspect = pw / ph
-    let imgW, imgH
-    if (availW / aspect <= availH) { imgW = availW; imgH = availW / aspect }
-    else { imgH = availH; imgW = availH * aspect }
-    const x = margin + (availW - imgW) / 2
-    const y = margin + (availH - imgH) / 2
-    pdf.addImage(pngUrl, 'PNG', x, y, imgW, imgH)
-    pdf.save('gantt.pdf')
+  async function exportPDF(mode) {
+    const chart = createExportChart()
+    const { saveChartPdf } = await import('./utils/exportPdf')
+    await saveChartPdf(chart, exportFilename(chartTitle, tasks, 'pdf'), mode)
   }
 
   function startTableResize(e) {
@@ -433,11 +368,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   <div onClick={() => setShowExport(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
                   <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 3, zIndex: 99, background: 'var(--gx-surface)', border: '1px solid var(--gx-border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: 110, padding: '4px 0' }}>
                     {[
-                      ['PNG', exportPNG, 'Raster image — best for Word, PowerPoint, email'],
-                      ['SVG', exportSVG, 'Vector image — opens in Inkscape and browsers'],
-                      ['PDF', exportPDF, 'A4 PDF — best for printing and sharing'],
+                      ['PNG', exportPNG, 'Complete raster image for documents and slides'],
+                      ['SVG', exportSVG, 'True vector image for design tools and browsers'],
+                      ['PDF fit', () => exportPDF('fit'), 'Fit the complete chart on one A4 page'],
+                      ['PDF landscape', () => exportPDF('landscape'), 'Fit the complete chart on one landscape A4 page'],
+                      ['PDF tiled', () => exportPDF('tiled'), 'Split a large chart across readable landscape pages'],
                     ].map(([label, action, tip]) => (
-                      <button key={label} onClick={() => { action(); setShowExport(false) }} title={tip}
+                      <button key={label} onClick={() => { runExport(action); setShowExport(false) }} title={tip}
                         style={{ display: 'block', width: '100%', padding: '9px 14px', fontSize: 13, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
                         {label}
                       </button>
@@ -479,8 +416,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               ))}
               <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
               <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Export</div>
-              {[['PNG', exportPNG], ['SVG', exportSVG], ['PDF', exportPDF]].map(([label, action]) => (
-                <button key={label} onClick={() => { action(); setShowMore(false) }}
+              {[
+                ['PNG', exportPNG],
+                ['SVG', exportSVG],
+                ['PDF fit', () => exportPDF('fit')],
+                ['PDF landscape', () => exportPDF('landscape')],
+                ['PDF tiled', () => exportPDF('tiled')],
+              ].map(([label, action]) => (
+                <button key={label} onClick={() => { runExport(action); setShowMore(false) }}
                   style={{ display: 'block', width: '100%', padding: '10px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
                   {label}
                 </button>
@@ -502,6 +445,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           </>
         )}
       </div>
+
+      {exportError && (
+        <div role="alert" className="gx-alert gx-alert-error" style={{ margin: '8px 10px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span><strong>Export failed:</strong> {exportError}</span>
+          <button type="button" onClick={() => setExportError('')} aria-label="Dismiss export error" style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {/* Gantt chart area */}
@@ -563,8 +513,6 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   onTaskChange={handleTaskChange}
                   onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
                   onRenameCategory={handleRenameCategory}
-                  exportRef={ganttExportRef}
-                  scrollExportRef={ganttScrollRef}
                   isMobile={isMobile}
                 />
               </div>
@@ -795,7 +743,9 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   ['Import', 'Load tasks from CSV, Excel or JSON'],
                   ['Export → PNG', 'Raster image for Word / slides'],
                   ['Export → SVG', 'Vector image for Inkscape'],
-                  ['Export → PDF', 'A4 PDF for print / sharing'],
+                  ['Export → PDF fit', 'Complete chart on one A4 page'],
+                  ['Export → PDF landscape', 'Complete chart on landscape A4'],
+                  ['Export → PDF tiled', 'Readable multi-page export for large charts'],
                 ],
               },
             ].map(({ heading, note, rows }) => (

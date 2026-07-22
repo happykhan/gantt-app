@@ -81,35 +81,35 @@ describe('parseExcelFile', () => {
     return XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
   }
 
-  it('parses a basic Excel file', () => {
+  it('parses a basic Excel file', async () => {
     const buf = makeXlsx([
       ['Task Name', 'Start Date', 'End Date', 'Category'],
       ['WP1 work',  '2024-01-01', '2024-06-01', 'WP1'],
       ['WP2 work',  '2024-03-01', '2024-09-01', 'WP2'],
     ])
-    const tasks = parseExcelFile(buf)
+    const tasks = await parseExcelFile(buf)
     expect(tasks).toHaveLength(2)
     expect(tasks[0].name).toBe('WP1 work')
     expect(tasks[0].category).toBe('WP1')
     expect(tasks[1].start).toBe('2024-03-01')
   })
 
-  it('handles progress column', () => {
+  it('handles progress column', async () => {
     const buf = makeXlsx([
       ['Task Name', 'Start', 'End', '% Complete'],
       ['Task A', '2024-01-01', '2024-06-01', 75],
     ])
-    const tasks = parseExcelFile(buf)
+    const tasks = await parseExcelFile(buf)
     expect(tasks[0].progress).toBe(75)
   })
 
-  it('clamps progress to 0–100', () => {
+  it('clamps progress to 0–100', async () => {
     const buf = makeXlsx([
       ['Task Name', 'Start', 'End', 'Progress'],
       ['Too high', '2024-01-01', '2024-06-01', 150],
       ['Too low',  '2024-01-01', '2024-06-01', -10],
     ])
-    const tasks = parseExcelFile(buf)
+    const tasks = await parseExcelFile(buf)
     expect(tasks[0].progress).toBe(100)
     expect(tasks[1].progress).toBe(0)
   })
