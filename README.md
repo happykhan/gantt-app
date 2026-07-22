@@ -24,6 +24,8 @@ A browser-based Gantt chart tool built for academic grant applications and proje
 
 ## Getting started
 
+Node.js 20.19.x, or 22.12 and newer, is required.
+
 ```bash
 npm install
 npm run dev
@@ -34,6 +36,14 @@ To build for production:
 ```bash
 npm run build
 ```
+
+Run the complete local quality gate with:
+
+```bash
+npm run ci
+```
+
+Dependency decisions, audit mitigations and bundle-size budgets are recorded in [docs/dependency-baseline.md](docs/dependency-baseline.md).
 
 ---
 

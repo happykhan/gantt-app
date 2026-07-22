@@ -93,7 +93,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      try { localStorage.setItem('gantt-labelWidth', lastW) } catch {}
+      try { localStorage.setItem('gantt-labelWidth', lastW) } catch { /* Preferences are best-effort. */ }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -134,7 +134,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   // ── shared drag commit ───────────────────────────────────────────────────────
   const TAP_THRESHOLD_PX = 8
 
-  function commitDrag(clientX) {
+  const commitDrag = useCallback((clientX) => {
     if (!dragRef.current) return
     const { taskId, type, origStart, origEnd, startClientX, pxPerDay: ppd } = dragRef.current
     const dxPx = clientX - startClientX
@@ -157,36 +157,36 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     }
     dragRef.current = null
     setDragState(null)
-  }
+  }, [onTaskChange, onTaskClick])
 
-  function initDrag(clientX, rect, task) {
+  const initDrag = useCallback((clientX, rect, task) => {
     const localX = clientX - rect.left
     let type = 'move'
     if (localX <= EDGE_PX) type = 'resize-start'
     else if (localX >= rect.width - EDGE_PX) type = 'resize-end'
     dragRef.current = { taskId: task.id, type, startClientX: clientX,
       origStart: task.start, origEnd: task.end, pxPerDay }
-    setDragState({ taskId: task.id, dxDays: 0 })
-  }
+    setDragState({ taskId: task.id, type, origStart: task.start, origEnd: task.end, dxDays: 0 })
+  }, [pxPerDay])
 
   // ── touch drag ──────────────────────────────────────────────────────────────
   const onTouchStart = useCallback((e, task) => {
     const touch = e.touches[0]
     initDrag(touch.clientX, e.currentTarget.getBoundingClientRect(), task)
     e.stopPropagation()
-  }, [pxPerDay])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initDrag])
 
   const onTouchMove = useCallback((e) => {
     if (!dragRef.current) return
     const dxDays = Math.round((e.touches[0].clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
-    setDragState({ taskId: dragRef.current.taskId, dxDays })
+    setDragState(current => current ? { ...current, dxDays } : current)
     e.preventDefault()
   }, [])
 
   const onTouchEnd = useCallback((e) => {
     e.preventDefault()
     commitDrag(e.changedTouches[0]?.clientX ?? dragRef.current?.startClientX ?? 0)
-  }, [onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [commitDrag])
 
   // ── mouse drag ───────────────────────────────────────────────────────────────
   const onMouseDown = useCallback((e, task) => {
@@ -198,7 +198,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     function onMouseMove(ev) {
       if (!dragRef.current) return
       const dxDays = Math.round((ev.clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
-      setDragState({ taskId: dragRef.current.taskId, dxDays })
+      setDragState(current => current ? { ...current, dxDays } : current)
     }
     function onMouseUp(ev) {
       window.removeEventListener('mousemove', onMouseMove)
@@ -207,7 +207,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-  }, [pxPerDay, onTaskClick, onTaskChange])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [commitDrag, initDrag])
 
   // ── classic mode scroll sync ─────────────────────────────────────────────────
   const onChartScroll = useCallback((e) => {
@@ -290,18 +290,17 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               const fromTask = tasks[fromIdx]
               const isDraggingFrom = dragState?.taskId === fromTask.id
               const isDraggingTo = dragState?.taskId === task.id
-              let fs = fromTask.start, fe = fromTask.end
-              let ts = task.start, te = task.end
-              if (isDraggingFrom && dragRef.current) {
-                const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
-                if (type === 'move') { fs = addDays(origStart, d); fe = addDays(origEnd, d) }
+              let fe = fromTask.end
+              let ts = task.start
+              if (isDraggingFrom) {
+                const d = dragState.dxDays; const { type, origEnd } = dragState
+                if (type === 'move') { fe = addDays(origEnd, d) }
                 else if (type === 'resize-end') { fe = addDays(origEnd, d) }
               }
-              if (isDraggingTo && dragRef.current) {
-                const d = dragState.dxDays; const { type, origStart, origEnd } = dragRef.current
-                if (type === 'move') { ts = addDays(origStart, d); te = addDays(origEnd, d) }
+              if (isDraggingTo) {
+                const d = dragState.dxDays; const { type, origStart } = dragState
+                if (type === 'move') { ts = addDays(origStart, d) }
                 else if (type === 'resize-start') { ts = addDays(origStart, d) }
-                else if (type === 'resize-end') { te = addDays(origEnd, d) }
               }
               const x1 = dateToX(fe, rangeStartStr, pxPerDay)
               const y1 = fromIdx * ROW_H + ROW_H / 2
@@ -344,8 +343,8 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
         {tasks.map((task, rowIdx) => {
           const isDragging = dragState?.taskId === task.id
           let s = task.start, e = task.end
-          if (isDragging && dragRef.current) {
-            const { type, origStart, origEnd } = dragRef.current
+          if (isDragging) {
+            const { type, origStart, origEnd } = dragState
             const d = dragState.dxDays
             if (type === 'move')              { s = addDays(origStart, d); e = addDays(origEnd, d) }
             else if (type === 'resize-start') { s = addDays(origStart, d); if (s >= e) s = addDays(e, -1) }

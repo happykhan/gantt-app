@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
 import { toPng } from 'html-to-image'
@@ -22,7 +22,7 @@ function loadInitial() {
       if (Array.isArray(saved.tasks) && saved.tasks.length)
         return { tasks: saved.tasks, chartTitle: saved.chartTitle || '', categoryColors: saved.categoryColors || {} }
     }
-  } catch {}
+  } catch { /* Local storage may be unavailable or contain invalid data. */ }
   return { tasks: [], chartTitle: '', categoryColors: {} }
 }
 
@@ -65,25 +65,25 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem('gantt-labelMode', labelMode) } catch {}
+    try { localStorage.setItem('gantt-labelMode', labelMode) } catch { /* Preferences are best-effort. */ }
   }, [labelMode])
   useEffect(() => {
-    try { localStorage.setItem('gantt-viewMode', viewMode) } catch {}
-  }, [labelMode])
+    try { localStorage.setItem('gantt-viewMode', viewMode) } catch { /* Preferences are best-effort. */ }
+  }, [viewMode])
   useEffect(() => {
-    try { localStorage.setItem('gantt-density', displayDensity) } catch {}
+    try { localStorage.setItem('gantt-density', displayDensity) } catch { /* Preferences are best-effort. */ }
   }, [displayDensity])
   useEffect(() => {
-    try { localStorage.setItem('gantt-zoom', zoom) } catch {}
+    try { localStorage.setItem('gantt-zoom', zoom) } catch { /* Preferences are best-effort. */ }
   }, [zoom])
   useEffect(() => {
-    try { localStorage.setItem('gantt-font', chartFont) } catch {}
+    try { localStorage.setItem('gantt-font', chartFont) } catch { /* Preferences are best-effort. */ }
   }, [chartFont])
   useEffect(() => {
-    try { localStorage.setItem('gantt-fontsize', chartFontSize) } catch {}
+    try { localStorage.setItem('gantt-fontsize', chartFontSize) } catch { /* Preferences are best-effort. */ }
   }, [chartFontSize])
   useEffect(() => {
-    try { localStorage.setItem('gantt-exportScale', exportScale) } catch {}
+    try { localStorage.setItem('gantt-exportScale', exportScale) } catch { /* Preferences are best-effort. */ }
   }, [exportScale])
 
   const DENSITY_ROW = { compact: 34, normal: 52, spacious: 68 }
@@ -117,20 +117,50 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const undoStack = useRef([])
 
   const [canUndo, setCanUndo] = useState(false)
-  function pushUndo() {
+  const pushUndo = useCallback(() => {
     undoStack.current = [...undoStack.current.slice(-29), tasks]
     setCanUndo(true)
-  }
-  function undo() {
+  }, [tasks])
+  const undo = useCallback(() => {
     if (!undoStack.current.length) return
     const prev = undoStack.current[undoStack.current.length - 1]
     undoStack.current = undoStack.current.slice(0, -1)
     setTasks(prev)
     setCanUndo(undoStack.current.length > 0)
-  }
+  }, [setTasks])
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
+
+  function handleColorChange(cat, color) {
+    setCategoryColors(prev => ({ ...prev, [cat]: color }))
+  }
+  function handleRenameCategory(oldCat, newCat) {
+    const trimmed = newCat.trim()
+    if (!trimmed || trimmed === oldCat) return
+    setTasks(prev => prev.map(t => t.category === oldCat ? { ...t, category: trimmed } : t))
+    setCategoryColors(prev => {
+      const next = { ...prev }
+      if (next[oldCat] !== undefined) { next[trimmed] = next[oldCat]; delete next[oldCat] }
+      return next
+    })
+  }
+  function handleTaskChange(id, changes) {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
+  }
+  const handleDelete = useCallback((id) => {
+    pushUndo()
+    setTasks(prev => {
+      const next = prev.filter(t => t.id !== id)
+      return next.map(t => ({
+        ...t,
+        dependencies: t.dependencies
+          ? t.dependencies.split(',').map(s => s.trim()).filter(d => d !== id).join(', ')
+          : ''
+      }))
+    })
+    if (selectedId === id) setSelectedId(null)
+  }, [pushUndo, selectedId, setTasks])
 
   // Keyboard shortcuts for selected task
   useEffect(() => {
@@ -165,37 +195,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedId])
-
-  function handleColorChange(cat, color) {
-    setCategoryColors(prev => ({ ...prev, [cat]: color }))
-  }
-  function handleRenameCategory(oldCat, newCat) {
-    const trimmed = newCat.trim()
-    if (!trimmed || trimmed === oldCat) return
-    setTasks(prev => prev.map(t => t.category === oldCat ? { ...t, category: trimmed } : t))
-    setCategoryColors(prev => {
-      const next = { ...prev }
-      if (next[oldCat] !== undefined) { next[trimmed] = next[oldCat]; delete next[oldCat] }
-      return next
-    })
-  }
-  function handleTaskChange(id, changes) {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
-  }
-  function handleDelete(id) {
-    pushUndo()
-    setTasks(prev => {
-      const next = prev.filter(t => t.id !== id)
-      return next.map(t => ({
-        ...t,
-        dependencies: t.dependencies
-          ? t.dependencies.split(',').map(s => s.trim()).filter(d => d !== id).join(', ')
-          : ''
-      }))
-    })
-    if (selectedId === id) setSelectedId(null)
-  }
+  }, [handleDelete, selectedId, setTasks, undo])
   function handleMoveTask(id, dir) {
     pushUndo()
     setTasks(prev => {
@@ -371,7 +371,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      try { localStorage.setItem('gantt-tableHeight', lastH) } catch {}
+      try { localStorage.setItem('gantt-tableHeight', lastH) } catch { /* Preferences are best-effort. */ }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -821,6 +821,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       {/* Bottom sheet (mobile task editor) */}
       {selectedTask && (
         <BottomSheet
+          key={selectedTask.id}
           task={selectedTask}
           tasks={tasks}
           categories={categories}
@@ -847,7 +848,7 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({ tasks, chartTitle, categoryColors }))
-    } catch {}
+    } catch { /* Autosave is best-effort when storage is unavailable. */ }
   }, [tasks, chartTitle, categoryColors])
 
   return (

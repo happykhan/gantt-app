@@ -1,16 +1,21 @@
 {
   "name": "gantt-app",
   "private": true,
-  "version": "1.0.31",
+  "version": "1.0.32",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run check:size",
+    "check:size": "node scripts/check-bundle-size.mjs",
+    "ci": "npm audit --omit=dev --audit-level=moderate && npm run lint && npm test && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   },
   "dependencies": {
     "@genomicx/ui": "^0.9.1",
@@ -20,9 +25,9 @@
     "jspdf": "^4.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.14.0",
+    "react-router-dom": "^7.18.1",
     "tailwindcss": "^4.2.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -37,7 +42,11 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "jsdom": "^29.0.2",
-    "vite": "^8.0.4",
+    "vite": "^8.1.5",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "dompurify": "^3.4.12",
+    "postcss": "^8.5.22"
   }
 }

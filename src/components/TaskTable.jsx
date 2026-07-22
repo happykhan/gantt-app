@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
@@ -74,18 +74,20 @@ function fmtDate(iso) {
 }
 
 function DateCell({ value, min, onChange }) {
-  const [editing, setEditing] = useState(false)
-  const [local, setLocal] = useState(value)
-  useEffect(() => { if (!editing) setLocal(value) }, [value, editing])
-  if (editing) {
+  const [draft, setDraft] = useState(null)
+  if (draft !== null) {
     return (
       <input
         autoFocus
         type="date"
-        value={local}
+        value={draft}
         min={min}
-        onChange={e => setLocal(e.target.value)}
-        onBlur={() => { setEditing(false); if (local !== value) onChange(local) }}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={() => {
+          const nextValue = draft
+          setDraft(null)
+          if (nextValue !== value) onChange(nextValue)
+        }}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
         style={{ width: '100%', padding: '2px 4px', fontSize: 12, border: 'none', background: 'transparent', color: 'var(--gx-text)', outline: 'none', fontFamily: 'inherit' }}
       />
@@ -93,27 +95,51 @@ function DateCell({ value, min, onChange }) {
   }
   return (
     <span
-      onClick={() => { setLocal(value); setEditing(true) }}
+      onClick={() => setDraft(value)}
       style={{ display: 'block', padding: '4px 6px', fontSize: 12, color: 'var(--gx-text)', cursor: 'text', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
     >{fmtDate(value)}</span>
   )
 }
 
 function Cell({ value, onChange, type = 'text', min, style }) {
-  const [local, setLocal] = useState(value)
-  useEffect(() => { setLocal(value) }, [value])
+  const [draft, setDraft] = useState(null)
+  const displayedValue = draft ?? value
   return (
-    <input type={type} value={local}
+    <input type={type} value={displayedValue}
       min={min}
-      onChange={e => setLocal(e.target.value)}
-      onBlur={() => { if (local !== value) onChange(local) }}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== null && draft !== value) onChange(draft)
+        setDraft(null)
+      }}
       style={{
         width: '100%', padding: '4px 6px', fontSize: 12,
         border: 'none', background: 'transparent', color: 'var(--gx-text)',
         outline: 'none', fontFamily: 'inherit', ...style,
       }}
-      onFocus={e => e.target.select()}
+      onFocus={e => { setDraft(value); e.target.select() }}
     />
+  )
+}
+
+function ResizableHeader({ colKey, label, width, baseStyle, onResize, extra = {} }) {
+  return (
+    <th style={{ ...baseStyle, width, maxWidth: width, position: 'sticky', top: 0, zIndex: 2, overflow: 'visible', ...extra }}>
+      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', paddingRight: 6 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        <div
+          onMouseDown={e => onResize(colKey, e)}
+          onTouchStart={e => onResize(colKey, e)}
+          style={{
+            position: 'absolute', right: -3, top: -6, bottom: -6, width: 10,
+            cursor: 'col-resize', zIndex: 3,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div style={{ width: 2, height: 14, borderRadius: 1, background: 'var(--gx-border)' }} />
+        </div>
+      </div>
+    </th>
   )
 }
 
@@ -138,7 +164,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
       window.removeEventListener('touchend', onUp)
       setColWidths(prev => {
         const next = { ...prev, [key]: lastW }
-        try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch {}
+        try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch { /* Preferences are best-effort. */ }
         return next
       })
     }
@@ -165,41 +191,19 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
   }
   const td = { padding: '2px 4px', borderBottom: '1px solid var(--gx-border)', verticalAlign: 'middle', overflow: 'hidden' }
 
-  // Resizable th: label + drag handle on right edge
-  function RH({ colKey, label, extra = {} }) {
-    return (
-      <th style={{ ...thBase, width: colWidths[colKey], maxWidth: colWidths[colKey], position: 'sticky', top: 0, zIndex: 2, overflow: 'visible', ...extra }}>
-        <div style={{ display: 'flex', alignItems: 'center', position: 'relative', paddingRight: 6 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-          <div
-            onMouseDown={e => startColResize(colKey, e)}
-            onTouchStart={e => startColResize(colKey, e)}
-            style={{
-              position: 'absolute', right: -3, top: -6, bottom: -6, width: 10,
-              cursor: 'col-resize', zIndex: 3,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <div style={{ width: 2, height: 14, borderRadius: 1, background: 'var(--gx-border)' }} />
-          </div>
-        </div>
-      </th>
-    )
-  }
-
   return (
     <div style={{ overflowX: 'auto', overflowY: 'auto', height: tableHeight, flexShrink: 0 }}>
       <table style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
             <th style={{ ...thBase, width: 32 }}>#</th>
-            <RH colKey="name" label="Task name" />
-            <RH colKey="start" label="Start" />
-            <RH colKey="end" label="End" />
-            <RH colKey="dur" label="Dur" />
-            <RH colKey="category" label="Category" />
-            <RH colKey="progress" label="%" />
-            <RH colKey="deps" label="Deps" />
+            <ResizableHeader colKey="name" label="Task name" width={colWidths.name} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="start" label="Start" width={colWidths.start} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="end" label="End" width={colWidths.end} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="dur" label="Dur" width={colWidths.dur} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="category" label="Category" width={colWidths.category} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="progress" label="%" width={colWidths.progress} baseStyle={thBase} onResize={startColResize} />
+            <ResizableHeader colKey="deps" label="Deps" width={colWidths.deps} baseStyle={thBase} onResize={startColResize} />
             <th style={{ ...thBase, width: 72 }}></th>
           </tr>
         </thead>
