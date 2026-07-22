@@ -23,6 +23,7 @@ Use this checklist for every production release. Record links and results in the
 - [ ] Wait for the `CI` build and browser-test jobs to pass.
 - [ ] Download or inspect the Playwright report artifact. Failed runs retain screenshots, video and traces; the large-plan test attaches a screenshot for every viewport and colour scheme.
 - [ ] Wait for Vercel to report a successful Preview deployment.
+- [ ] If previews use Vercel Authentication, confirm the repository's `VERCEL_AUTOMATION_BYPASS_SECRET` Actions secret matches the project's Protection Bypass for Automation secret.
 - [ ] Run the smoke test against that exact deployment: `E2E_BASE_URL=https://preview.example npm run test:e2e:preview`.
 - [ ] Confirm the automated `Vercel preview smoke` check passes when the deployment-status integration is available.
 - [ ] Manually check the empty state, example, task editor and one image export on the preview.
