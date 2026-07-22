@@ -32,6 +32,18 @@ describe('ImportModal', () => {
     expect(onLoad).not.toHaveBeenCalled()
   })
 
+  it('rejects cyclic dependencies in the import preview', () => {
+    render(<ImportModal onLoad={vi.fn()} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'ID,Name,Start,End,Dependencies\na,First,2026-01-01,2026-01-02,b\nb,Second,2026-01-02,2026-01-03,a' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview import' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Dependency cycle')
+    expect(screen.getByRole('button', { name: 'Resolve errors before importing' })).toBeDisabled()
+  })
+
   it('previews a JSON project with its title and colours before importing', async () => {
     const onLoad = vi.fn()
     const { container } = render(<ImportModal onLoad={onLoad} onClose={vi.fn()} />)

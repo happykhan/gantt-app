@@ -29,6 +29,7 @@ import {
 import { downloadProject, readProjectFile } from './services/projectPersistence'
 import { generateSampleData } from './utils/parseInput'
 import { chooseResponsiveViewMode, clampZoom } from './utils/viewDefaults'
+import { moveTaskAfterPredecessors, validateDependencyGraph } from './utils/dependencyGraph'
 
 const ROW_HEIGHTS = { compact: 34, normal: 52, spacious: 68 }
 
@@ -63,14 +64,22 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   const exportRef = useRef(null)
   const scrollRef = useRef(null)
   const categories = useMemo(() => getCategories(tasks), [tasks])
+  const dependencyGraph = useMemo(() => validateDependencyGraph(tasks), [tasks])
   const selectedTask = tasks.find(task => task.id === selectedId)
   const editingTask = tasks.find(task => task.id === editingTaskId)
   const { feedback, notify } = useFeedback()
   const { exportPng, exportSvg, exportPdf } = useChartExport({ exportRef, chartTitle, chartFont, exportScale, notify })
 
   const handleTaskChange = useCallback((taskId, changes) => {
-    setTasks(current => updateTask(current, taskId, changes))
-  }, [setTasks])
+    const nextTasks = updateTask(tasks, taskId, changes)
+    const validation = validateDependencyGraph(nextTasks)
+    if (validation.errors.length) {
+      notify(`Change rejected. ${validation.errors[0].message}`, 'error')
+      return false
+    }
+    setTasks(nextTasks)
+    return true
+  }, [notify, setTasks, tasks])
 
   const handleDelete = useCallback(taskId => {
     setTasks(current => deleteTask(current, taskId))
@@ -162,6 +171,11 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
     }))
   }
 
+  function handleMoveAfterPredecessors(taskId) {
+    setTasks(current => moveTaskAfterPredecessors(current, taskId))
+    notify('Task moved after its predecessors')
+  }
+
   function fitProject() {
     const scroller = scrollRef.current
     if (!scroller?.scrollWidth || !scroller.clientWidth) return
@@ -238,6 +252,8 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
         onTaskChange={handleTaskChange}
         onTaskClick={editTask}
         onTaskSelect={setSelectedId}
+        scheduleWarnings={dependencyGraph.scheduleWarnings}
+        onMoveAfterPredecessors={handleMoveAfterPredecessors}
         onRenameCategory={handleRenameCategory}
         onDelete={handleDelete}
         onMove={handleMove}

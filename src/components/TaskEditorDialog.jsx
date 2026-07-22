@@ -29,7 +29,7 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
   const otherTasks = tasks.filter(candidate => candidate.id !== task.id)
 
   function save() {
-    onUpdate(task.id, {
+    const accepted = onUpdate(task.id, {
       name,
       start,
       end: end >= start ? end : start,
@@ -38,7 +38,7 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
       dependencies: [...dependencies].join(', '),
       color: taskColour || undefined,
     })
-    onClose()
+    if (accepted !== false) onClose()
   }
 
   return (

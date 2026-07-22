@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStoredPreference } from '../hooks/useStoredPreference'
 import CustomGantt from './CustomGantt'
 import EmptyState from './EmptyState'
+import ScheduleWarnings from './ScheduleWarnings'
 import TaskTable from './TaskTable'
 
 export default function GanttWorkspace({
@@ -30,6 +31,8 @@ export default function GanttWorkspace({
   onTaskChange,
   onTaskClick,
   onTaskSelect,
+  scheduleWarnings,
+  onMoveAfterPredecessors,
   onRenameCategory,
   onDelete,
   onMove,
@@ -91,6 +94,8 @@ export default function GanttWorkspace({
             </span>
           )}
         </div>
+
+        <ScheduleWarnings warnings={scheduleWarnings} onMove={onMoveAfterPredecessors} isMobile={isMobile} />
 
         {tasks.length === 0 ? (
           <EmptyState onCreate={onCreate} onExample={onExample} onImport={onImport} />

@@ -17,7 +17,12 @@ function DepsModal({ task, tasks, onSave, onClose }) {
   const [deps, setDeps] = useState(() =>
     new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
+  const [query, setQuery] = useState('')
   const others = tasks.filter(t => t.id !== task.id)
+  const normalisedQuery = query.trim().toLowerCase()
+  const filtered = normalisedQuery
+    ? others.filter(candidate => candidate.name.toLowerCase().includes(normalisedQuery) || candidate.id.toLowerCase().includes(normalisedQuery))
+    : others
   return (
     <Modal
       titleId="dependencies-title"
@@ -37,8 +42,16 @@ function DepsModal({ task, tasks, onSave, onClose }) {
           <button aria-label="Close dependencies" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <p id="dependencies-description" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--gx-text-muted)' }}>Choose tasks that must finish before {task.name} starts.</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {others.map((t, index) => (
+        <input
+          type="search"
+          aria-label="Search predecessor tasks"
+          placeholder="Search by task name or ID"
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: 10, padding: '8px 10px', border: '1px solid var(--gx-border)', borderRadius: 7, background: 'var(--gx-bg)', color: 'var(--gx-text)', fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, maxHeight: 280, overflowY: 'auto' }}>
+          {filtered.map((t, index) => (
             <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -51,12 +64,15 @@ function DepsModal({ task, tasks, onSave, onClose }) {
                 })}
                 style={{ accentColor: 'var(--gx-accent)', width: 16, height: 16, flexShrink: 0 }}
               />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              <span title={`${t.name} (${t.id})`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
             </label>
           ))}
+          {!filtered.length && <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>No matching tasks</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button data-dialog-initial-focus={others.length === 0 ? true : undefined} onClick={() => { onSave([...deps].join(', ')); onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
+          <button data-dialog-initial-focus={others.length === 0 ? true : undefined}
+            onClick={() => { if (onSave([...deps].join(', ')) !== false) onClose() }}
+            className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
           <button onClick={onClose} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Cancel</button>
         </div>
     </Modal>
