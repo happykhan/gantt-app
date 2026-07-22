@@ -143,7 +143,7 @@ function ResizableHeader({ colKey, label, width, baseStyle, onResize, extra = {}
   )
 }
 
-export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240 }) {
+export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240, compact = false, onEdit }) {
   const [openDepsId, setOpenDepsId] = useState(null)
   const [colWidths, setColWidths] = useState(loadColWidths)
 
@@ -181,6 +181,27 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     return task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
       .map(id => { const t = tasks.find(x => x.id === id); return t ? t.name : null })
       .filter(Boolean)
+  }
+
+  if (compact) {
+    return (
+      <div className="compact-task-list" style={{ height: tableHeight }}>
+        <div className="compact-task-list-header">
+          <strong>Edit tasks</strong>
+          <button onClick={onAdd} className="gx-btn gx-btn-primary">+ Add</button>
+        </div>
+        {tasks.map((task, idx) => (
+          <button key={task.id} className="compact-task-card" onClick={() => onEdit?.(task.id)} title={`Edit ${task.name}`}>
+            <span className="compact-task-index">{idx + 1}</span>
+            <span className="compact-task-summary">
+              <strong title={task.name}>{task.name}</strong>
+              <small>{fmtDate(task.start)} to {fmtDate(task.end)} · {duration(task.start, task.end)}{getDepNames(task).length ? ` · ${getDepNames(task).length} dependencies` : ''}</small>
+            </span>
+            <span className="compact-task-edit">Edit</span>
+          </button>
+        ))}
+      </div>
+    )
   }
 
   const thBase = {

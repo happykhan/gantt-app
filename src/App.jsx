@@ -6,7 +6,9 @@ import CustomGantt from './components/CustomGantt'
 import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
+import WorkflowMenu, { MenuButton, MenuDivider, MenuLabel } from './components/WorkflowMenu'
 import { generateSampleData } from './utils/parseInput'
+import { chooseResponsiveViewMode, clampZoom } from './utils/viewDefaults'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
@@ -26,9 +28,10 @@ function loadInitial() {
   return { tasks: [], chartTitle: '', categoryColors: {} }
 }
 
-function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
+function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors, autosaveStatus }) {
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [viewMode, setViewMode] = useState(() => {
-    try { return localStorage.getItem('gantt-viewMode') || (window.innerWidth < 900 ? 'Year' : 'Quarter') } catch { return 'Quarter' }
+    try { return localStorage.getItem('gantt-viewMode') || chooseResponsiveViewMode(tasks, window.innerWidth) } catch { return chooseResponsiveViewMode(tasks, window.innerWidth) }
   })
   const [labelMode, setLabelMode] = useState(() => {
     try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
@@ -55,11 +58,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
-  const [showMore, setShowMore] = useState(false)
-  const [showExport, setShowExport] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState(null)
+  const [feedback, setFeedback] = useState(null)
 
   useEffect(() => {
-    function onResize() { setIsMobile(window.innerWidth < 900) }
+    function onResize() {
+      setViewportWidth(window.innerWidth)
+      setIsMobile(window.innerWidth < 900)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -131,6 +137,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
+  const editingTask = tasks.find(t => t.id === editingTaskId)
+
+  const notify = useCallback((message, tone = 'success') => {
+    setFeedback({ message, tone, id: Date.now() })
+  }, [])
+
+  useEffect(() => {
+    if (!feedback) return undefined
+    const timer = window.setTimeout(() => setFeedback(null), 3200)
+    return () => window.clearTimeout(timer)
+  }, [feedback])
 
   function handleColorChange(cat, color) {
     setCategoryColors(prev => ({ ...prev, [cat]: color }))
@@ -215,10 +232,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const newTask = { id: makeId(), name: 'New task', start, end, category: last?.category || '', dependencies: '', progress: 0 }
     setTasks(prev => [...prev, newTask])
     setSelectedId(newTask.id)
+    setEditingTaskId(newTask.id)
   }
   function handleImport(newTasks) {
     pushUndo()
-    setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
+    const imported = newTasks.map(t => ({ ...t, id: t.id || makeId() }))
+    setTasks(imported)
+    setViewMode(chooseResponsiveViewMode(imported, viewportWidth))
+    setShowTable(viewportWidth >= 600)
+    notify(`Imported ${imported.length} ${imported.length === 1 ? 'task' : 'tasks'}`)
   }
   function handleClear() {
     pushUndo()
@@ -236,6 +258,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     a.download = 'gantt-project.json'
     a.click()
     URL.revokeObjectURL(a.href)
+    notify('Project file saved')
   }
   function loadProject(file) {
     if (!file) return
@@ -243,10 +266,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     reader.onload = e => {
       try {
         const { tasks: loaded, chartTitle: loadedTitle, categoryColors: loadedColors } = JSON.parse(e.target.result)
-        if (Array.isArray(loaded) && loaded.length) setTasks(loaded)
+        if (Array.isArray(loaded) && loaded.length) {
+          setTasks(loaded)
+          setViewMode(chooseResponsiveViewMode(loaded, viewportWidth))
+        }
         if (loadedTitle) setChartTitle(loadedTitle)
         if (loadedColors && typeof loadedColors === 'object') setCategoryColors(loadedColors)
-      } catch { /* ignore */ }
+        notify(`Project loaded with ${loaded?.length || 0} tasks`)
+      } catch { notify('That project file could not be loaded', 'error') }
     }
     reader.readAsText(file)
   }
@@ -300,7 +327,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       }
       return pngUrl
     } catch (e) {
-      console.error(e); alert('Export failed — try zooming to 100% first.'); return null
+      console.error(e); notify('Export failed. Try Reset zoom, then export again.', 'error'); return null
     } finally {
       saved.forEach(({ el, overflow, overflowX, overflowY, height, maxHeight }) => {
         el.style.overflow = overflow; el.style.overflowX = overflowX; el.style.overflowY = overflowY
@@ -311,12 +338,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }
 
   async function exportPNG() {
+    notify('Preparing PNG…', 'progress')
     const pngUrl = await capturePng()
     if (!pngUrl) return
     const a = document.createElement('a'); a.href = pngUrl; a.download = 'gantt.png'; a.click()
+    notify('PNG exported')
   }
 
   async function exportSVG() {
+    notify('Preparing SVG…', 'progress')
     const pngUrl = await capturePng()
     if (!pngUrl) return
     const img = new Image(); img.src = pngUrl
@@ -330,9 +360,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     ].join('\n')
     const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
     const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'gantt.svg'; a.click(); URL.revokeObjectURL(url)
+    notify('SVG exported')
   }
 
   async function exportPDF() {
+    notify('Preparing PDF…', 'progress')
     const pngUrl = await capturePng()
     if (!pngUrl) return
     const { jsPDF } = await import('jspdf')
@@ -354,6 +386,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const y = margin + (availH - imgH) / 2
     pdf.addImage(pngUrl, 'PNG', x, y, imgW, imgH)
     pdf.save('gantt.pdf')
+    notify('PDF exported')
   }
 
   function startTableResize(e) {
@@ -380,145 +413,119 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     e.preventDefault()
   }
 
-  const ZOOM_STEP = 0.25, ZOOM_MIN = 0.5, ZOOM_MAX = 2
+  const ZOOM_STEP = 0.25, ZOOM_MIN = 0.4, ZOOM_MAX = 2
+  function fitProject() {
+    const scroller = ganttScrollRef.current
+    if (!scroller?.scrollWidth || !scroller.clientWidth) return
+    setZoom(clampZoom((scroller.clientWidth - 8) / scroller.scrollWidth, ZOOM_MIN, ZOOM_MAX))
+    scroller.scrollTo?.({ left: 0, top: 0, behavior: 'smooth' })
+    notify('Project fitted to the available width')
+  }
+
+  function resetZoom() {
+    setZoom(1)
+    ganttScrollRef.current?.scrollTo?.({ left: 0, top: 0, behavior: 'smooth' })
+    notify('Zoom reset to 100%')
+  }
   const settingsLabel = { fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }
   const selectStyle = { width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid var(--gx-border)', borderRadius: 8, background: 'var(--gx-surface)', color: 'var(--gx-text)', outline: 'none', fontFamily: 'inherit' }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-      {/* Toolbar */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
-        {['Week','Month','Quarter','Year'].map(m => (
-          <button key={m} onClick={() => setViewMode(m)}
-            className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
-            title={`${m} view`}
-            style={{ fontSize: 12, padding: '3px 8px' }}>{isMobile ? m.charAt(0) : m}</button>
-        ))}
-        <span style={{ width: 4 }} />
-        <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
-          className="gx-btn gx-btn-secondary" title="Zoom out" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
-        <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }} title="Current zoom level">{Math.round(zoom * 100)}%</span>
-        <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
-          className="gx-btn gx-btn-secondary" title="Zoom in" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
-        <button onClick={undo} disabled={!canUndo}
-          className="gx-btn gx-btn-secondary" title="Undo (Ctrl+Z)" style={{ fontSize: 13, padding: '1px 8px' }}>↩</button>
-        <div style={{ flex: 1 }} />
+      <div className="workflow-toolbar" aria-label="Project workflow">
+        <div className="workflow-primary-actions">
+          <button onClick={handleAddNew} className="gx-btn gx-btn-primary workflow-action">
+            <span aria-hidden="true">＋</span><span>{tasks.length ? 'Task' : 'Create task'}</span>
+          </button>
+          <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary workflow-action">
+            Import
+          </button>
+          <button
+            onClick={() => setShowTable(value => !value)}
+            className={`gx-btn gx-btn-secondary workflow-action${showTable ? ' is-active' : ''}`}
+            aria-pressed={showTable}
+          >
+            Edit tasks
+          </button>
+          <button
+            onClick={() => {
+              if (selectedId) setEditingTaskId(selectedId)
+              else notify('Select a task to add dependencies', 'progress')
+            }}
+            className="gx-btn gx-btn-secondary workflow-action dependencies-action"
+            disabled={!tasks.length}
+            aria-label="Dependencies"
+          >
+            <span className="desktop-action-label">Dependencies</span><span className="mobile-action-label">Deps</span>
+          </button>
+        </div>
 
-        {isMobile ? (
-          <button onClick={() => setShowMore(s => !s)} className="gx-btn gx-btn-secondary"
-            style={{ fontSize: 18, padding: '1px 12px', lineHeight: 1 }} title="More options">⋯</button>
-        ) : (
-          <>
-            <button onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
-              className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
-              title={labelMode === 'inline' ? 'Classic: task names shown in a left-hand column' : 'Inline: task names shown inside the bars'}>
-              {labelMode === 'inline' ? 'Classic' : 'Inline'}
-            </button>
-            <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Display settings: row density, font, colours, export resolution">⚙ Settings</button>
-            <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
-              title={showTable ? 'Hide the task editor table' : 'Show the task editor table'}>
-              {showTable ? '▲ Table' : '▼ Table'}
-            </button>
-            <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Import tasks from CSV, Excel or JSON">Import</button>
-            <button onClick={saveProject} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Save project as a .json file (includes tasks, title and colours)">Save</button>
-            <label className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', cursor: 'pointer', margin: 0 }} title="Load a previously saved .json project file">
-              Load<input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = '' }} />
+        <div className="workflow-secondary-actions">
+          <button onClick={undo} disabled={!canUndo} className="gx-btn gx-btn-secondary icon-action" title="Undo (Ctrl+Z)" aria-label="Undo">↩</button>
+          <WorkflowMenu label="View" align="left">
+            <MenuLabel>Timeline scale</MenuLabel>
+            <div className="view-mode-grid">
+              {['Week', 'Month', 'Quarter', 'Year'].map(mode => (
+                <MenuButton key={mode} className={viewMode === mode ? 'is-selected' : ''} onClick={() => setViewMode(mode)}>{mode}</MenuButton>
+              ))}
+            </div>
+            <MenuDivider />
+            <MenuButton onClick={fitProject}>Fit to project</MenuButton>
+            <MenuButton onClick={resetZoom}>Reset zoom <span>{Math.round(zoom * 100)}%</span></MenuButton>
+            <div className="zoom-menu-row" onClick={event => event.stopPropagation()}>
+              <button onClick={() => setZoom(value => clampZoom(value - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))} disabled={zoom <= ZOOM_MIN} aria-label="Zoom out">−</button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button onClick={() => setZoom(value => clampZoom(value + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))} disabled={zoom >= ZOOM_MAX} aria-label="Zoom in">＋</button>
+            </div>
+            <MenuDivider />
+            <MenuButton onClick={() => setLabelMode(mode => mode === 'inline' ? 'classic' : 'inline')}>
+              {labelMode === 'inline' ? 'Show label column' : 'Show labels in bars'}
+            </MenuButton>
+            <MenuButton onClick={() => setShowSettings(true)}>Display settings</MenuButton>
+          </WorkflowMenu>
+
+          <WorkflowMenu label="Project">
+            <MenuButton onClick={saveProject}>Save project file</MenuButton>
+            <label className="workflow-menu-item file-menu-item" role="menuitem">
+              Open project file
+              <input type="file" accept=".json" onChange={event => { loadProject(event.target.files[0]); event.target.value = '' }} />
             </label>
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setShowExport(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Export chart as image or PDF">
-                Export ▾
-              </button>
-              {showExport && (
-                <>
-                  <div onClick={() => setShowExport(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
-                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 3, zIndex: 99, background: 'var(--gx-surface)', border: '1px solid var(--gx-border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: 110, padding: '4px 0' }}>
-                    {[
-                      ['PNG', exportPNG, 'Raster image — best for Word, PowerPoint, email'],
-                      ['SVG', exportSVG, 'Vector image — opens in Inkscape and browsers'],
-                      ['PDF', exportPDF, 'A4 PDF — best for printing and sharing'],
-                    ].map(([label, action, tip]) => (
-                      <button key={label} onClick={() => { action(); setShowExport(false) }} title={tip}
-                        style={{ display: 'block', width: '100%', padding: '9px 14px', fontSize: 13, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <button onClick={() => setConfirmClear(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Remove all tasks and reset the chart">Clear</button>
-            <button onClick={() => setShowHelp(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px', fontWeight: 700 }} title="Keyboard shortcuts and tips">?</button>
-          </>
-        )}
+            <MenuDivider />
+            <MenuButton onClick={() => setShowHelp(true)}>Help and shortcuts</MenuButton>
+            <MenuButton danger onClick={() => setConfirmClear(true)}>Clear project</MenuButton>
+          </WorkflowMenu>
 
-        {/* Mobile overflow menu */}
-        {isMobile && showMore && (
-          <>
-            <div onClick={() => setShowMore(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
-            <div style={{
-              position: 'absolute', right: 8, top: '100%', zIndex: 99,
-              background: 'var(--gx-surface)', border: '1px solid var(--gx-border)',
-              borderRadius: 10, boxShadow: '0 6px 28px rgba(0,0,0,0.22)',
-              minWidth: 200, padding: '6px 0', marginTop: 4,
-            }}>
-              <button onClick={() => { undo(); setShowMore(false) }} disabled={!canUndo}
-                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: canUndo ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: canUndo ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-                ↩ Undo
-              </button>
-              {[
-                [labelMode === 'inline' ? 'Classic layout' : 'Inline layout', () => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')],
-                [showTable ? 'Hide table' : 'Show table', () => setShowTable(s => !s)],
-                ['Settings', () => setShowSettings(true)],
-                ['Import…', () => setShowImport(true)],
-                ['Save project', saveProject],
-              ].map(([label, action]) => (
-                <button key={label} onClick={() => { action(); setShowMore(false) }}
-                  style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {label}
-                </button>
-              ))}
-              <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
-              <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Export</div>
-              {[['PNG', exportPNG], ['SVG', exportSVG], ['PDF', exportPDF]].map(([label, action]) => (
-                <button key={label} onClick={() => { action(); setShowMore(false) }}
-                  style={{ display: 'block', width: '100%', padding: '10px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {label}
-                </button>
-              ))}
-              <label style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, background: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'border-box' }}>
-                Load project
-                <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => { loadProject(e.target.files[0]); e.target.value = ''; setShowMore(false) }} />
-              </label>
-              <div style={{ height: 1, background: 'var(--gx-border)', margin: '4px 0' }} />
-              <button onClick={() => { setShowHelp(true); setShowMore(false) }}
-                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-text)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Help &amp; shortcuts
-              </button>
-              <button onClick={() => { setConfirmClear(true); setShowMore(false) }}
-                style={{ display: 'block', width: '100%', padding: '12px 16px', fontSize: 14, textAlign: 'left', background: 'none', border: 'none', color: 'var(--gx-error)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                Clear all
-              </button>
-            </div>
-          </>
-        )}
+          <WorkflowMenu label="Export">
+            <MenuLabel>Share your finished chart</MenuLabel>
+            <MenuButton onClick={exportPNG}>PNG image</MenuButton>
+            <MenuButton onClick={exportSVG}>SVG image</MenuButton>
+            <MenuButton onClick={exportPDF}>PDF document</MenuButton>
+          </WorkflowMenu>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {/* Gantt chart area */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
           {/* Chart title */}
-          <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
+          <div className="chart-heading">
             {editingTitle ? (
               <input autoFocus value={chartTitle} onChange={e => setChartTitle(e.target.value)}
                 onBlur={() => setEditingTitle(false)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingTitle(false) }}
-                placeholder="Enter chart title…"
+                aria-label="Project title"
+                placeholder="Add project title"
                 style={{ width: '100%', fontSize: 15, fontWeight: 600, border: 'none', borderBottom: '2px solid var(--gx-accent)', outline: 'none', background: 'transparent', color: 'var(--gx-text)', padding: '2px 0' }} />
             ) : (
-              <div onClick={() => setEditingTitle(true)} title="Tap to set chart title"
+              <div onClick={() => setEditingTitle(true)} title="Select to set the project title"
                 style={{ fontSize: 15, fontWeight: 600, color: chartTitle ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: 'text', minHeight: 24 }}>
-                {chartTitle || 'Tap to add chart title…'}
+                {chartTitle || 'Add project title'}
               </div>
+            )}
+            {tasks.length > 0 && (
+              <span className="chart-heading-hint">
+                {selectedTask ? `Selected: ${selectedTask.name}` : isMobile ? 'Tap a task to edit' : 'Select a task to edit dates and dependencies'}
+              </span>
             )}
           </div>
 
@@ -528,11 +535,11 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               <div style={{ fontSize: 48, lineHeight: 1, marginBottom: 4 }}>📊</div>
               <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--gx-text)' }}>Build your Gantt chart</h2>
               <p style={{ margin: 0, fontSize: 15, color: 'var(--gx-text-muted)', maxWidth: 380, lineHeight: 1.6 }}>
-                Create a project timeline for a grant proposal, research plan, or any multi-phase project. Your chart lives in the browser — no account needed.
+                Create a project timeline, edit the details, connect dependencies, then save or export. Everything stays in your browser.
               </p>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
                 <button onClick={handleAddNew} className="gx-btn gx-btn-primary" style={{ fontSize: 15, padding: '12px 24px' }}>
-                  + Add first task
+                  Create first task
                 </button>
                 <button onClick={() => {
                   const { tasks: sample } = { tasks: generateSampleData().map(t => ({ ...t, id: t.id || makeId() })) }
@@ -541,15 +548,15 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   Load example
                 </button>
                 <button onClick={() => setShowImport(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 15, padding: '12px 24px' }}>
-                  Import CSV / Excel
+                  Import project data
                 </button>
               </div>
               <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--gx-text-muted)' }}>
-                Tip: use the ? button for keyboard shortcuts
+                Start from scratch, an example, or an existing spreadsheet.
               </p>
             </div>
           ) : (
-            <div ref={ganttAreaRef} style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <div ref={ganttAreaRef} className="gantt-viewport">
               <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: `${(100/zoom).toFixed(1)}%`, height: `${(100/zoom).toFixed(1)}%` }}>
                 <CustomGantt
                   tasks={tasks}
@@ -561,11 +568,16 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   categoryColors={categoryColors}
                   onColorChange={handleColorChange}
                   onTaskChange={handleTaskChange}
-                  onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
+                  onTaskClick={id => {
+                    setSelectedId(id)
+                    setEditingTaskId(id)
+                  }}
                   onRenameCategory={handleRenameCategory}
                   exportRef={ganttExportRef}
                   scrollExportRef={ganttScrollRef}
                   isMobile={isMobile}
+                  selectedId={selectedId}
+                  availableWidth={Math.max(320, viewportWidth - (labelMode === 'classic' ? (isMobile ? 124 : 190) : 16))}
                 />
               </div>
             </div>
@@ -576,17 +588,18 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           <button onClick={handleAddNew}
             style={{
               position: 'absolute', bottom: 20, right: 20,
-              width: 52, height: 52, borderRadius: '50%',
+              minWidth: 52, height: 52, borderRadius: 26, padding: '0 18px',
               background: 'var(--gx-accent)', color: '#fff',
-              border: 'none', fontSize: 26, lineHeight: 1, cursor: 'pointer',
+              border: 'none', lineHeight: 1, cursor: 'pointer',
               boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
-            }} title="Add task">+</button>
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, zIndex: 10,
+              fontSize: 14, fontWeight: 700,
+            }} title="Add task"><span style={{ fontSize: 24 }}>+</span><span className="fab-label">Task</span></button>
           )}
         </main>
 
         {/* Task table (collapsible + resizable) */}
-        {showTable && (
+        {showTable && tasks.length > 0 && (
           <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
             {/* Resize handle */}
             <div
@@ -609,10 +622,19 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               onAdd={handleAddNew}
               onMove={handleMoveTask}
               tableHeight={tableHeight}
+              compact={viewportWidth < 600}
+              onEdit={id => { setSelectedId(id); setEditingTaskId(id) }}
             />
           </div>
         )}
       </div>
+
+      {(feedback || autosaveStatus === 'saving') && (
+        <div className={`workflow-feedback ${feedback?.tone || 'progress'}`} role="status" aria-live="polite">
+          <span className="feedback-dot" />
+          {feedback?.message || 'Saving changes…'}
+        </div>
+      )}
 
       {/* Import modal */}
       {showImport && <ImportModal onLoad={handleImport} onClose={() => setShowImport(false)} />}
@@ -819,19 +841,19 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       )}
 
       {/* Bottom sheet (mobile task editor) */}
-      {selectedTask && (
+      {editingTask && (
         <BottomSheet
-          key={selectedTask.id}
-          task={selectedTask}
+          key={editingTask.id}
+          task={editingTask}
           tasks={tasks}
           categories={categories}
           categoryColors={categoryColors}
           onColorChange={handleColorChange}
           onUpdate={handleTaskChange}
           onDelete={handleDelete}
-          onClose={() => setSelectedId(null)}
-          onMoveUp={tasks.indexOf(selectedTask) > 0 ? () => handleMoveTask(selectedId, -1) : null}
-          onMoveDown={tasks.indexOf(selectedTask) < tasks.length - 1 ? () => handleMoveTask(selectedId, 1) : null}
+          onClose={() => setEditingTaskId(null)}
+          onMoveUp={tasks.indexOf(editingTask) > 0 ? () => handleMoveTask(editingTaskId, -1) : null}
+          onMoveDown={tasks.indexOf(editingTask) < tasks.length - 1 ? () => handleMoveTask(editingTaskId, 1) : null}
         />
       )}
     </div>
@@ -843,12 +865,24 @@ function App() {
   const [tasks, setTasks] = useState(initial.tasks)
   const [chartTitle, setChartTitle] = useState(initial.chartTitle)
   const [categoryColors, setCategoryColors] = useState(initial.categoryColors)
+  const [autosaveStatus, setAutosaveStatus] = useState('saved')
 
   // Autosave
   useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ tasks, chartTitle, categoryColors }))
-    } catch { /* Autosave is best-effort when storage is unavailable. */ }
+    let savedTimer
+    const savingTimer = window.setTimeout(() => {
+      setAutosaveStatus('saving')
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({ tasks, chartTitle, categoryColors }))
+        savedTimer = window.setTimeout(() => setAutosaveStatus('saved'), 450)
+      } catch {
+        setAutosaveStatus('unavailable')
+      }
+    }, 120)
+    return () => {
+      window.clearTimeout(savingTimer)
+      window.clearTimeout(savedTimer)
+    }
   }, [tasks, chartTitle, categoryColors])
 
   return (
@@ -877,10 +911,15 @@ function App() {
           tasks={tasks} setTasks={setTasks}
           chartTitle={chartTitle} setChartTitle={setChartTitle}
           categoryColors={categoryColors} setCategoryColors={setCategoryColors}
+          autosaveStatus={autosaveStatus}
         />
 
-        <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '6px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
-          <span>Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'} — autosaved in your browser</span>
+        <footer className="app-footer">
+          <span className={`autosave-indicator is-${autosaveStatus}`}>
+            <span className="feedback-dot" />
+            {autosaveStatus === 'saving' ? 'Saving…' : autosaveStatus === 'unavailable' ? 'Browser save unavailable' : 'All changes saved in this browser'}
+          </span>
+          <span className="app-version">Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'}</span>
           <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gx-accent)', textDecoration: 'none' }}>GitHub</a>
         </footer>
       </div>
