@@ -13,13 +13,14 @@ function useIsDesktop() {
   return isDesktop
 }
 
-export default function BottomSheet({ task, tasks = [], categories, categoryColors = {}, onColorChange, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
+export default function BottomSheet({ task, tasks = [], categories, categoryColors = {}, onSave, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
   const [end, setEnd] = useState(task?.end || '')
   const [category, setCategory] = useState(task?.category || '')
   const [progress, setProgress] = useState(task?.progress ?? 0)
   const [taskColor, setTaskColor] = useState(task?.color || '')
+  const [categoryColor, setCategoryColor] = useState(null)
   const [deps, setDeps] = useState(() =>
     new Set(task?.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
@@ -28,12 +29,14 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
   if (!task) return null
 
   function save() {
-    onUpdate(task.id, { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', '), color: taskColor || undefined })
+    const changes = { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', '), color: taskColor || undefined }
+    if (onSave) onSave(task.id, changes, categoryColor ? { category, color: categoryColor } : null)
+    else onUpdate(task.id, changes)
     onClose()
   }
 
   const catIdx = categories.indexOf(category)
-  const catColor = (category && categoryColors[category]) || (catIdx >= 0 ? CAT_COLORS[catIdx % CAT_COLORS.length] : '#94a3b8')
+  const catColor = categoryColor || (category && categoryColors[category]) || (catIdx >= 0 ? CAT_COLORS[catIdx % CAT_COLORS.length] : '#94a3b8')
 
   const labelStyle = { fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' }
   const inputStyle = { width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--gx-border)', borderRadius: 8, background: 'var(--gx-surface)', color: 'var(--gx-text)', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
@@ -110,7 +113,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
                 <input
                   type="color"
                   value={catColor}
-                  onChange={e => onColorChange?.(category, e.target.value)}
+                  onChange={e => setCategoryColor(e.target.value)}
                   style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
                 />
               </label>

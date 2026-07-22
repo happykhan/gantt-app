@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useReducer } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
 import { toPng } from 'html-to-image'
@@ -8,56 +8,37 @@ import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
 import { generateSampleData } from './utils/parseInput'
 import { parseProjectObject, parseProjectText, serialiseProject } from './utils/projectSchema'
+import { createHistory, historyReducer } from './utils/editorHistory'
+import { loadAutosave, loadDisplaySettings, saveAutosave, saveDisplaySettings } from './utils/storage'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
 function addDays(str, n) { const d = new Date(str + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().substring(0, 10) }
 
-const LS_KEY = 'gantt-app-v1'
+function GanttPage({ initialProject }) {
+  const [history, dispatchHistory] = useReducer(
+    historyReducer,
+    { ...initialProject, selectedId: null },
+    createHistory,
+  )
+  const { tasks, chartTitle, categoryColors, selectedId } = history.present
+  const transact = useCallback(update => dispatchHistory({ type: 'transact', update }), [])
+  const replaceTransient = useCallback(update => dispatchHistory({ type: 'replace', update }), [])
+  const undo = useCallback(() => dispatchHistory({ type: 'undo' }), [])
+  const canUndo = history.past.length > 0
 
-function loadInitial() {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (raw) {
-      const result = parseProjectObject(JSON.parse(raw))
-      if (result.project && result.errors.length === 0) {
-        return {
-          tasks: result.project.tasks,
-          chartTitle: result.project.title,
-          categoryColors: result.project.categoryColors,
-        }
-      }
-    }
-  } catch { /* Local storage may be unavailable or contain invalid data. */ }
-  return { tasks: [], chartTitle: '', categoryColors: {} }
-}
-
-function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors, setCategoryColors }) {
-  const [viewMode, setViewMode] = useState(() => {
-    try { return localStorage.getItem('gantt-viewMode') || (window.innerWidth < 900 ? 'Year' : 'Quarter') } catch { return 'Quarter' }
-  })
-  const [labelMode, setLabelMode] = useState(() => {
-    try { return localStorage.getItem('gantt-labelMode') || 'inline' } catch { return 'inline' }
-  })
-  const [selectedId, setSelectedId] = useState(null)
-  const [zoom, setZoom] = useState(() => {
-    try { return parseFloat(localStorage.getItem('gantt-zoom')) || 1 } catch { return 1 }
-  })
+  const [settings, setSettings] = useState(() => loadDisplaySettings(localStorage, window.innerWidth))
+  const {
+    viewMode, labelMode, zoom, displayDensity, chartFont, chartFontSize, exportScale,
+    showTable, tableHeight, labelWidth, columnWidths,
+  } = settings
+  const updateSettings = useCallback(update => {
+    setSettings(current => typeof update === 'function' ? update(current) : { ...current, ...update })
+  }, [])
   const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
-  const [displayDensity, setDisplayDensity] = useState(() => {
-    try { return localStorage.getItem('gantt-density') || 'normal' } catch { return 'normal' }
-  })
-  const [chartFont, setChartFont] = useState(() => {
-    try { return localStorage.getItem('gantt-font') || 'inherit' } catch { return 'inherit' }
-  })
-  const [chartFontSize, setChartFontSize] = useState(() => {
-    try { return parseInt(localStorage.getItem('gantt-fontsize'), 10) || 11 } catch { return 11 }
-  })
-  const [exportScale, setExportScale] = useState(() => {
-    try { return parseInt(localStorage.getItem('gantt-exportScale'), 10) || 2 } catch { return 2 }
-  })
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
@@ -71,27 +52,10 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  useEffect(() => { saveDisplaySettings(localStorage, settings) }, [settings])
   useEffect(() => {
-    try { localStorage.setItem('gantt-labelMode', labelMode) } catch { /* Preferences are best-effort. */ }
-  }, [labelMode])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-viewMode', viewMode) } catch { /* Preferences are best-effort. */ }
-  }, [viewMode])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-density', displayDensity) } catch { /* Preferences are best-effort. */ }
-  }, [displayDensity])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-zoom', zoom) } catch { /* Preferences are best-effort. */ }
-  }, [zoom])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-font', chartFont) } catch { /* Preferences are best-effort. */ }
-  }, [chartFont])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-fontsize', chartFontSize) } catch { /* Preferences are best-effort. */ }
-  }, [chartFontSize])
-  useEffect(() => {
-    try { localStorage.setItem('gantt-exportScale', exportScale) } catch { /* Preferences are best-effort. */ }
-  }, [exportScale])
+    saveAutosave(localStorage, { tasks, chartTitle, categoryColors })
+  }, [tasks, chartTitle, categoryColors])
 
   const DENSITY_ROW = { compact: 34, normal: 52, spacious: 68 }
   const rowHeight = DENSITY_ROW[displayDensity] || 52
@@ -112,62 +76,89 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     const cats = [...new Set(tasks.map(t => t.category).filter(Boolean))]
     const next = {}
     cats.forEach((cat, i) => { next[cat] = palette[i % palette.length] })
-    setCategoryColors(next)
+    transact(state => ({ ...state, categoryColors: next }))
   }
-  const [showTable, setShowTable] = useState(() => window.innerWidth >= 900)
-  const [tableHeight, setTableHeight] = useState(() => {
-    try { return parseInt(localStorage.getItem('gantt-tableHeight'), 10) || 240 } catch { return 240 }
-  })
   const ganttAreaRef = useRef()
   const ganttExportRef = useRef()
   const ganttScrollRef = useRef()
-  const undoStack = useRef([])
+  const titleCancelledRef = useRef(false)
 
-  const [canUndo, setCanUndo] = useState(false)
-  const pushUndo = useCallback(() => {
-    undoStack.current = [...undoStack.current.slice(-29), tasks]
-    setCanUndo(true)
-  }, [tasks])
-  const undo = useCallback(() => {
-    if (!undoStack.current.length) return
-    const prev = undoStack.current[undoStack.current.length - 1]
-    undoStack.current = undoStack.current.slice(0, -1)
-    setTasks(prev)
-    setCanUndo(undoStack.current.length > 0)
-  }, [setTasks])
+  function beginTitleEdit() {
+    titleCancelledRef.current = false
+    setTitleDraft(chartTitle)
+    setEditingTitle(true)
+  }
+
+  function finishTitleEdit() {
+    if (!titleCancelledRef.current) {
+      transact(state => ({ ...state, chartTitle: titleDraft }))
+    }
+    titleCancelledRef.current = false
+    setEditingTitle(false)
+  }
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
+  const setSelectedId = useCallback(value => {
+    replaceTransient(state => ({
+      ...state,
+      selectedId: typeof value === 'function' ? value(state.selectedId) : value,
+    }))
+  }, [replaceTransient])
 
   function handleColorChange(cat, color) {
-    setCategoryColors(prev => ({ ...prev, [cat]: color }))
+    if (!cat) return
+    transact(state => ({
+      ...state,
+      categoryColors: { ...state.categoryColors, [cat]: color },
+    }))
   }
   function handleRenameCategory(oldCat, newCat) {
     const trimmed = newCat.trim()
     if (!trimmed || trimmed === oldCat) return
-    setTasks(prev => prev.map(t => t.category === oldCat ? { ...t, category: trimmed } : t))
-    setCategoryColors(prev => {
-      const next = { ...prev }
-      if (next[oldCat] !== undefined) { next[trimmed] = next[oldCat]; delete next[oldCat] }
-      return next
+    transact(state => {
+      const nextColours = { ...state.categoryColors }
+      if (nextColours[oldCat] !== undefined) {
+        nextColours[trimmed] = nextColours[oldCat]
+        delete nextColours[oldCat]
+      }
+      return {
+        ...state,
+        tasks: state.tasks.map(task => task.category === oldCat ? { ...task, category: trimmed } : task),
+        categoryColors: nextColours,
+      }
     })
   }
   function handleTaskChange(id, changes) {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...changes } : t))
+    transact(state => ({
+      ...state,
+      tasks: state.tasks.map(task => task.id === id ? { ...task, ...changes } : task),
+    }))
+  }
+  function handleTaskModalSave(id, changes, categoryColour) {
+    transact(state => ({
+      ...state,
+      tasks: state.tasks.map(task => task.id === id ? { ...task, ...changes } : task),
+      categoryColors: categoryColour?.category
+        ? { ...state.categoryColors, [categoryColour.category]: categoryColour.color }
+        : state.categoryColors,
+    }))
   }
   const handleDelete = useCallback((id) => {
-    pushUndo()
-    setTasks(prev => {
-      const next = prev.filter(t => t.id !== id)
-      return next.map(t => ({
-        ...t,
-        dependencies: t.dependencies
-          ? t.dependencies.split(',').map(s => s.trim()).filter(d => d !== id).join(', ')
-          : ''
-      }))
+    transact(state => {
+      const remaining = state.tasks.filter(task => task.id !== id)
+      return {
+        ...state,
+        tasks: remaining.map(task => ({
+          ...task,
+          dependencies: task.dependencies
+            ? task.dependencies.split(',').map(value => value.trim()).filter(dependency => dependency !== id).join(', ')
+            : '',
+        })),
+        selectedId: state.selectedId === id ? null : state.selectedId,
+      }
     })
-    if (selectedId === id) setSelectedId(null)
-  }, [pushUndo, selectedId, setTasks])
+  }, [transact])
 
   // Keyboard shortcuts for selected task
   useEffect(() => {
@@ -184,63 +175,62 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const days = e.shiftKey ? 7 : 1
         const delta = e.key === 'ArrowLeft' ? -days : days
-        setTasks(prev => prev.map(t => t.id === selectedId
-          ? { ...t, start: addDays(t.start, delta), end: addDays(t.end, delta) }
-          : t))
+        transact(state => ({
+          ...state,
+          tasks: state.tasks.map(task => task.id === selectedId
+            ? { ...task, start: addDays(task.start, delta), end: addDays(task.end, delta) }
+            : task),
+        }))
         e.preventDefault()
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        setTasks(prev => {
-          const idx = prev.findIndex(t => t.id === selectedId)
+        transact(state => {
+          const idx = state.tasks.findIndex(task => task.id === selectedId)
           const next = idx + (e.key === 'ArrowUp' ? -1 : 1)
-          if (next < 0 || next >= prev.length) return prev
-          const arr = [...prev];
-          [arr[idx], arr[next]] = [arr[next], arr[idx]]
-          return arr
+          if (next < 0 || next >= state.tasks.length) return state
+          const arr = [...state.tasks]
+          const currentTask = arr[idx]
+          arr[idx] = arr[next]
+          arr[next] = currentTask
+          return { ...state, tasks: arr }
         })
         e.preventDefault()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleDelete, selectedId, setTasks, undo])
+  }, [handleDelete, selectedId, setSelectedId, transact, undo])
   function handleMoveTask(id, dir) {
-    pushUndo()
-    setTasks(prev => {
-      const idx = prev.findIndex(t => t.id === id)
+    transact(state => {
+      const idx = state.tasks.findIndex(task => task.id === id)
       const next = idx + dir
-      if (next < 0 || next >= prev.length) return prev
-      const arr = [...prev];
-      [arr[idx], arr[next]] = [arr[next], arr[idx]]
-      return arr
+      if (next < 0 || next >= state.tasks.length) return state
+      const arr = [...state.tasks]
+      const currentTask = arr[idx]
+      arr[idx] = arr[next]
+      arr[next] = currentTask
+      return { ...state, tasks: arr }
     })
   }
   function handleAddNew() {
-    pushUndo()
     const last = tasks[tasks.length - 1]
     const start = last?.end || new Date().toISOString().substring(0, 10)
     const end = new Date(new Date(start).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
     const newTask = { id: makeId(), name: 'New task', start, end, category: last?.category || '', dependencies: '', progress: 0 }
-    setTasks(prev => [...prev, newTask])
-    setSelectedId(newTask.id)
+    transact(state => ({ ...state, tasks: [...state.tasks, newTask], selectedId: newTask.id }))
   }
   function handleImport({ kind, project }) {
-    pushUndo()
-    setTasks(project.tasks)
-    if (kind === 'project') {
-      setChartTitle(project.title)
-      setCategoryColors(project.categoryColors)
-    } else {
-      setCategoryColors(project.categoryColors)
-    }
-    setSelectedId(null)
+    transact(state => ({
+      ...state,
+      tasks: project.tasks,
+      chartTitle: kind === 'project' ? project.title : state.chartTitle,
+      categoryColors: project.categoryColors,
+      selectedId: null,
+    }))
+    setShowImport(false)
     setProjectError(null)
   }
   function handleClear() {
-    pushUndo()
-    setTasks([])
-    setChartTitle('')
-    setCategoryColors({})
-    setSelectedId(null)
+    transact(state => ({ ...state, tasks: [], chartTitle: '', categoryColors: {}, selectedId: null }))
     setConfirmClear(false)
   }
 
@@ -271,11 +261,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
         setProjectError(`Project was not loaded. ${location}${first?.message || 'Validation failed.'}`)
         return
       }
-      pushUndo()
-      setTasks(result.project.tasks)
-      setChartTitle(result.project.title)
-      setCategoryColors(result.project.categoryColors)
-      setSelectedId(null)
+      transact(state => ({
+        ...state,
+        tasks: result.project.tasks,
+        chartTitle: result.project.title,
+        categoryColors: result.project.categoryColors,
+        selectedId: null,
+      }))
       setProjectError(null)
     }
     reader.readAsText(file)
@@ -394,14 +386,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     function onMove(ev) {
       const y = ev.touches ? ev.touches[0].clientY : ev.clientY
       lastH = Math.max(80, Math.min(600, startH - (y - startY)))
-      setTableHeight(lastH)
+      updateSettings(current => ({ ...current, tableHeight: lastH }))
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      try { localStorage.setItem('gantt-tableHeight', lastH) } catch { /* Preferences are best-effort. */ }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -419,16 +410,16 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
       {/* Toolbar */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
         {['Week','Month','Quarter','Year'].map(m => (
-          <button key={m} onClick={() => setViewMode(m)}
+          <button key={m} onClick={() => updateSettings({ viewMode: m })}
             className={viewMode === m ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
             title={`${m} view`}
             style={{ fontSize: 12, padding: '3px 8px' }}>{isMobile ? m.charAt(0) : m}</button>
         ))}
         <span style={{ width: 4 }} />
-        <button onClick={() => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} disabled={zoom <= ZOOM_MIN}
+        <button onClick={() => updateSettings(current => ({ ...current, zoom: Math.max(ZOOM_MIN, +(current.zoom - ZOOM_STEP).toFixed(2)) }))} disabled={zoom <= ZOOM_MIN}
           className="gx-btn gx-btn-secondary" title="Zoom out" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>−</button>
         <span style={{ fontSize: 12, color: 'var(--gx-text-muted)', minWidth: 36, textAlign: 'center' }} title="Current zoom level">{Math.round(zoom * 100)}%</span>
-        <button onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} disabled={zoom >= ZOOM_MAX}
+        <button onClick={() => updateSettings(current => ({ ...current, zoom: Math.min(ZOOM_MAX, +(current.zoom + ZOOM_STEP).toFixed(2)) }))} disabled={zoom >= ZOOM_MAX}
           className="gx-btn gx-btn-secondary" title="Zoom in" style={{ fontSize: 16, padding: '1px 8px', lineHeight: 1 }}>+</button>
         <button onClick={undo} disabled={!canUndo}
           className="gx-btn gx-btn-secondary" title="Undo (Ctrl+Z)" style={{ fontSize: 13, padding: '1px 8px' }}>↩</button>
@@ -439,13 +430,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             style={{ fontSize: 18, padding: '1px 12px', lineHeight: 1 }} title="More options">⋯</button>
         ) : (
           <>
-            <button onClick={() => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')}
+            <button onClick={() => updateSettings(current => ({ ...current, labelMode: current.labelMode === 'inline' ? 'classic' : 'inline' }))}
               className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
               title={labelMode === 'inline' ? 'Classic: task names shown in a left-hand column' : 'Inline: task names shown inside the bars'}>
               {labelMode === 'inline' ? 'Classic' : 'Inline'}
             </button>
             <button onClick={() => setShowSettings(true)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }} title="Display settings: row density, font, colours, export resolution">⚙ Settings</button>
-            <button onClick={() => setShowTable(s => !s)} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
+            <button onClick={() => updateSettings(current => ({ ...current, showTable: !current.showTable }))} className="gx-btn gx-btn-secondary" style={{ fontSize: 12, padding: '3px 8px' }}
               title={showTable ? 'Hide the task editor table' : 'Show the task editor table'}>
               {showTable ? '▲ Table' : '▼ Table'}
             </button>
@@ -496,8 +487,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 ↩ Undo
               </button>
               {[
-                [labelMode === 'inline' ? 'Classic layout' : 'Inline layout', () => setLabelMode(m => m === 'inline' ? 'classic' : 'inline')],
-                [showTable ? 'Hide table' : 'Show table', () => setShowTable(s => !s)],
+                [labelMode === 'inline' ? 'Classic layout' : 'Inline layout', () => updateSettings(current => ({ ...current, labelMode: current.labelMode === 'inline' ? 'classic' : 'inline' }))],
+                [showTable ? 'Hide table' : 'Show table', () => updateSettings(current => ({ ...current, showTable: !current.showTable }))],
                 ['Settings', () => setShowSettings(true)],
                 ['Import…', () => setShowImport(true)],
                 ['Save project', saveProject],
@@ -546,13 +537,16 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           {/* Chart title */}
           <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--gx-border)', background: 'var(--gx-surface)', flexShrink: 0 }}>
             {editingTitle ? (
-              <input autoFocus value={chartTitle} onChange={e => setChartTitle(e.target.value)}
-                onBlur={() => setEditingTitle(false)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingTitle(false) }}
+              <input autoFocus value={titleDraft} onChange={e => setTitleDraft(e.target.value)}
+                onBlur={finishTitleEdit}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') finishTitleEdit()
+                  if (e.key === 'Escape') { titleCancelledRef.current = true; setEditingTitle(false) }
+                }}
                 placeholder="Enter chart title…"
                 style={{ width: '100%', fontSize: 15, fontWeight: 600, border: 'none', borderBottom: '2px solid var(--gx-accent)', outline: 'none', background: 'transparent', color: 'var(--gx-text)', padding: '2px 0' }} />
             ) : (
-              <div onClick={() => setEditingTitle(true)} title="Tap to set chart title"
+              <div onClick={beginTitleEdit} title="Tap to set chart title"
                 style={{ fontSize: 15, fontWeight: 600, color: chartTitle ? 'var(--gx-text)' : 'var(--gx-text-muted)', cursor: 'text', minHeight: 24 }}>
                 {chartTitle || 'Tap to add chart title…'}
               </div>
@@ -573,7 +567,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                 </button>
                 <button onClick={() => {
                   const { tasks: sample } = { tasks: generateSampleData().map(t => ({ ...t, id: t.id || makeId() })) }
-                  setTasks(sample)
+                  transact(state => ({ ...state, tasks: sample, selectedId: null }))
                 }} className="gx-btn gx-btn-secondary" style={{ fontSize: 15, padding: '12px 24px' }}>
                   Load example
                 </button>
@@ -596,6 +590,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   barFontSize={barFontSize}
                   chartFont={chartFont}
                   categoryColors={categoryColors}
+                  labelWidth={labelWidth}
+                  onLabelWidthChange={next => updateSettings({ labelWidth: next })}
                   onColorChange={handleColorChange}
                   onTaskChange={handleTaskChange}
                   onTaskClick={id => setSelectedId(prev => prev === id ? null : id)}
@@ -646,6 +642,8 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               onAdd={handleAddNew}
               onMove={handleMoveTask}
               tableHeight={tableHeight}
+              columnWidths={columnWidths}
+              onColumnWidthsChange={next => updateSettings({ columnWidths: next })}
             />
           </div>
         )}
@@ -660,7 +658,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           <div onClick={() => setConfirmClear(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 50, background: 'var(--gx-surface)', borderRadius: 12, padding: '28px 28px 24px', width: 320, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(0,0,0,0.22)' }}>
             <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Clear all tasks?</h3>
-            <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>This will remove all tasks and the chart title. This cannot be undone.</p>
+            <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--gx-text-muted)', lineHeight: 1.5 }}>This will remove all tasks, the chart title and project colours. You can undo this action.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={handleClear} style={{ flex: 1, padding: '10px', fontSize: 14, background: 'var(--gx-error)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Clear all</button>
               <button onClick={() => setConfirmClear(false)} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 14 }}>Cancel</button>
@@ -688,7 +686,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   { d: 'normal',   tip: 'Normal: default row height' },
                   { d: 'spacious', tip: 'Spacious: taller rows, easier to click on touch devices' },
                 ].map(({ d, tip }) => (
-                  <button key={d} onClick={() => setDisplayDensity(d)} title={tip}
+                  <button key={d} onClick={() => updateSettings({ displayDensity: d })} title={tip}
                     className={displayDensity === d ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, textTransform: 'capitalize' }}>{d}</button>
                 ))}
@@ -698,7 +696,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             {/* Font family */}
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Chart font</div>
-              <select value={chartFont} onChange={e => setChartFont(e.target.value)} style={selectStyle}>
+              <select value={chartFont} onChange={e => updateSettings({ chartFont: e.target.value })} style={selectStyle}>
                 <option value="inherit">Default (theme)</option>
                 <option value="Inter, system-ui, sans-serif">Inter</option>
                 <option value="Arial, sans-serif">Arial</option>
@@ -712,14 +710,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
             <div style={{ marginBottom: 18 }}>
               <div style={settingsLabel}>Font size</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => setChartFontSize(s => Math.max(6, s - 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>−</button>
+                <button onClick={() => updateSettings(current => ({ ...current, chartFontSize: Math.max(6, current.chartFontSize - 1) }))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>−</button>
                 <input
                   type="number" min={6} max={32}
                   value={chartFontSize}
-                  onChange={e => { const v = parseInt(e.target.value, 10); if (v >= 6 && v <= 32) setChartFontSize(v) }}
+                  onChange={e => { const v = parseInt(e.target.value, 10); if (v >= 6 && v <= 32) updateSettings({ chartFontSize: v }) }}
                   style={{ ...selectStyle, width: 64, textAlign: 'center', padding: '8px 6px' }}
                 />
-                <button onClick={() => setChartFontSize(s => Math.min(32, s + 1))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>+</button>
+                <button onClick={() => updateSettings(current => ({ ...current, chartFontSize: Math.min(32, current.chartFontSize + 1) }))} className="gx-btn gx-btn-secondary" style={{ padding: '6px 12px', fontSize: 16, lineHeight: 1 }}>+</button>
                 <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>px</span>
               </div>
             </div>
@@ -763,7 +761,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
                   { scale: 3, label: '3×', note: 'sharp',   tip: '3× — crisp on high-DPI displays' },
                   { scale: 4, label: '4×', note: 'print',   tip: '4× — best for print, largest file' },
                 ].map(({ scale, label, note, tip }) => (
-                  <button key={scale} onClick={() => setExportScale(scale)} title={tip}
+                  <button key={scale} onClick={() => updateSettings({ exportScale: scale })} title={tip}
                     className={exportScale === scale ? 'gx-btn gx-btn-primary' : 'gx-btn gx-btn-secondary'}
                     style={{ flex: 1, padding: '8px 4px', fontSize: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
                   >
@@ -863,8 +861,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           tasks={tasks}
           categories={categories}
           categoryColors={categoryColors}
-          onColorChange={handleColorChange}
-          onUpdate={handleTaskChange}
+          onSave={handleTaskModalSave}
           onDelete={handleDelete}
           onClose={() => setSelectedId(null)}
           onMoveUp={tasks.indexOf(selectedTask) > 0 ? () => handleMoveTask(selectedId, -1) : null}
@@ -876,18 +873,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
 }
 
 function App() {
-  const initial = loadInitial()
-  const [tasks, setTasks] = useState(initial.tasks)
-  const [chartTitle, setChartTitle] = useState(initial.chartTitle)
-  const [categoryColors, setCategoryColors] = useState(initial.categoryColors)
-
-  // Autosave
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(serialiseProject({ tasks, chartTitle, categoryColors })))
-    } catch { /* Autosave is best-effort when storage is unavailable. */ }
-  }, [tasks, chartTitle, categoryColors])
-
+  const [initialProject] = useState(() => loadAutosave(localStorage))
   return (
     <BrowserRouter>
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--gx-bg)', overflow: 'hidden' }}>
@@ -910,11 +896,7 @@ function App() {
           }
         />
 
-        <GanttPage
-          tasks={tasks} setTasks={setTasks}
-          chartTitle={chartTitle} setChartTitle={setChartTitle}
-          categoryColors={categoryColors} setCategoryColors={setCategoryColors}
-        />
+        <GanttPage initialProject={initialProject} />
 
         <footer style={{ borderTop: '1px solid var(--gx-border)', padding: '6px 16px', fontSize: 12, color: 'var(--gx-text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, background: 'var(--gx-surface)', flexShrink: 0 }}>
           <span>Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'} — autosaved in your browser</span>
