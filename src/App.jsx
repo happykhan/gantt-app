@@ -122,10 +122,14 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
     setEditingTaskId(task.id)
   }
 
-  function handleImport(importedTasks) {
+  function handleImport({ kind, project: importedProject }) {
     checkpoint()
-    const nextTasks = withTaskIds(importedTasks)
-    setTasks(nextTasks)
+    const nextTasks = withTaskIds(importedProject.tasks)
+    setProject(current => ({
+      tasks: nextTasks,
+      chartTitle: kind === 'project' ? importedProject.title : current.chartTitle,
+      categoryColors: importedProject.categoryColors,
+    }))
     setViewMode(chooseResponsiveViewMode(nextTasks, viewportWidth))
     setShowTable(viewportWidth >= 600)
     notify(`Imported ${nextTasks.length} ${nextTasks.length === 1 ? 'task' : 'tasks'}`)

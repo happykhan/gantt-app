@@ -21,7 +21,7 @@ export function normaliseProject(value) {
   if (!value || typeof value !== 'object') return { ...EMPTY_PROJECT }
   return {
     tasks: Array.isArray(value.tasks) ? value.tasks : [],
-    chartTitle: typeof value.chartTitle === 'string' ? value.chartTitle : '',
+    chartTitle: typeof value.chartTitle === 'string' ? value.chartTitle : typeof value.title === 'string' ? value.title : '',
     categoryColors: value.categoryColors && typeof value.categoryColors === 'object' && !Array.isArray(value.categoryColors)
       ? value.categoryColors
       : {},
