@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Modal from './Modal'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
@@ -18,24 +19,30 @@ function DepsModal({ task, tasks, onSave, onClose }) {
   )
   const others = tasks.filter(t => t.id !== task.id)
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, backdropFilter: 'blur(2px)' }} />
-      <div style={{
+    <Modal
+      titleId="dependencies-title"
+      descriptionId="dependencies-description"
+      onClose={onClose}
+      backdropZIndex={50}
+      dialogZIndex={51}
+      style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        zIndex: 51, background: 'var(--gx-surface)', borderRadius: 12, padding: '20px 20px 16px',
+        background: 'var(--gx-surface)', borderRadius: 12, padding: '20px 20px 16px',
         width: 340, maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto',
         boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
-      }}>
+      }}
+    >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--gx-text)' }}>Dependencies</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <h3 id="dependencies-title" style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--gx-text)' }}>Dependencies</h3>
+          <button aria-label="Close dependencies" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--gx-text-muted)' }}>{task.name}</p>
+        <p id="dependencies-description" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--gx-text-muted)' }}>Choose tasks that must finish before {task.name} starts.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {others.map(t => (
+          {others.map((t, index) => (
             <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
+                data-dialog-initial-focus={index === 0 ? true : undefined}
                 checked={deps.has(t.id)}
                 onChange={e => setDeps(prev => {
                   const next = new Set(prev)
@@ -49,11 +56,10 @@ function DepsModal({ task, tasks, onSave, onClose }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => { onSave([...deps].join(', ')); onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
+          <button data-dialog-initial-focus={others.length === 0 ? true : undefined} onClick={() => { onSave([...deps].join(', ')); onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
           <button onClick={onClose} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Cancel</button>
         </div>
-      </div>
-    </>
+    </Modal>
   )
 }
 
@@ -97,6 +103,15 @@ function DateCell({ value, min, onChange, ariaLabel }) {
   return (
     <span
       onClick={() => setDraft(value)}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          setDraft(value)
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${ariaLabel}: ${fmtDate(value)}. Press Enter to edit`}
       style={{ display: 'block', padding: '4px 6px', fontSize: 12, color: 'var(--gx-text)', cursor: 'text', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
     >{fmtDate(value)}</span>
   )
@@ -123,14 +138,25 @@ function Cell({ value, onChange, type = 'text', min, style, ariaLabel }) {
   )
 }
 
-function ResizableHeader({ colKey, label, width, baseStyle, onResize, extra = {} }) {
+function ResizableHeader({ colKey, label, width, baseStyle, onResize, onKeyboardResize, extra = {} }) {
   return (
-    <th style={{ ...baseStyle, width, maxWidth: width, position: 'sticky', top: 0, zIndex: 2, overflow: 'visible', ...extra }}>
+    <th scope="col" style={{ ...baseStyle, width, maxWidth: width, position: 'sticky', top: 0, zIndex: 2, overflow: 'visible', ...extra }}>
       <div style={{ display: 'flex', alignItems: 'center', position: 'relative', paddingRight: 6 }}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
         <div
           onMouseDown={e => onResize(colKey, e)}
           onTouchStart={e => onResize(colKey, e)}
+          onKeyDown={event => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            onKeyboardResize(colKey, event.key === 'ArrowLeft' ? -10 : 10)
+          }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${label} column`}
+          aria-valuemin={MIN_COL_WIDTHS[colKey] ?? 40}
+          aria-valuenow={Math.round(width)}
+          tabIndex={0}
           style={{
             position: 'absolute', right: -3, top: -6, bottom: -6, width: 10,
             cursor: 'col-resize', zIndex: 3,
@@ -184,6 +210,14 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
       .filter(Boolean)
   }
 
+  function resizeColumnWithKeyboard(key, delta) {
+    setColWidths(prev => {
+      const next = { ...prev, [key]: Math.max(MIN_COL_WIDTHS[key] ?? 40, prev[key] + delta) }
+      try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch { /* Preferences are best-effort. */ }
+      return next
+    })
+  }
+
   if (compact) {
     return (
       <div className="compact-task-list" style={{ height: tableHeight }}>
@@ -215,18 +249,18 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
 
   return (
     <div style={{ overflowX: 'auto', overflowY: 'auto', height: tableHeight, flexShrink: 0 }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+      <table aria-label="Project tasks" style={{ borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
-            <th style={{ ...thBase, width: 32 }}>#</th>
-            <ResizableHeader colKey="name" label="Task name" width={colWidths.name} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="start" label="Start" width={colWidths.start} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="end" label="End" width={colWidths.end} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="dur" label="Dur" width={colWidths.dur} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="category" label="Category" width={colWidths.category} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="progress" label="%" width={colWidths.progress} baseStyle={thBase} onResize={startColResize} />
-            <ResizableHeader colKey="deps" label="Deps" width={colWidths.deps} baseStyle={thBase} onResize={startColResize} />
-            <th style={{ ...thBase, width: 72 }}></th>
+            <th scope="col" style={{ ...thBase, width: 32 }}>Order</th>
+            <ResizableHeader colKey="name" label="Task name" width={colWidths.name} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="start" label="Start" width={colWidths.start} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="end" label="End" width={colWidths.end} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="dur" label="Duration" width={colWidths.dur} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="category" label="Category" width={colWidths.category} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="progress" label="Progress percentage" width={colWidths.progress} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <ResizableHeader colKey="deps" label="Dependencies" width={colWidths.deps} baseStyle={thBase} onResize={startColResize} onKeyboardResize={resizeColumnWithKeyboard} />
+            <th scope="col" aria-label="Task actions" style={{ ...thBase, width: 72 }}></th>
           </tr>
         </thead>
         <tbody>
@@ -240,7 +274,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                     <label title={task.color ? 'Custom colour — click to change, right-click to reset' : 'Click to set a custom task colour'} style={{ flexShrink: 0, cursor: 'pointer', position: 'relative', lineHeight: 0 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: task.color || dot, display: 'block', border: task.color ? '1.5px solid rgba(0,0,0,0.25)' : '1px dashed rgba(128,128,128,0.5)', flexShrink: 0 }} />
-                      <input type="color" value={task.color || dot}
+                      <input type="color" aria-label={`Choose a custom colour for ${task.name}`} value={task.color || dot}
                         onChange={e => onUpdate(task.id, { color: e.target.value })}
                         onContextMenu={e => { e.preventDefault(); onUpdate(task.id, { color: undefined }) }}
                         style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
@@ -271,6 +305,12 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                 <td style={{ ...td, width: colWidths.deps }}>
                   <div
                     onClick={() => setOpenDepsId(openDepsId === task.id ? null : task.id)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setOpenDepsId(openDepsId === task.id ? null : task.id)
+                      }
+                    }}
                     role="button"
                     tabIndex={0}
                     aria-label={`Dependencies for ${task.name}`}
@@ -280,7 +320,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                     {getDepNames(task).length === 0
                       ? <span style={{ fontSize: 11, color: 'var(--gx-text-muted)' }}>—</span>
                       : getDepNames(task).map(name => (
-                          <span key={name} style={{ fontSize: 10, background: 'var(--gx-border)', color: 'var(--gx-text-muted)', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
+                          <span key={name} style={{ fontSize: 10, background: 'var(--gx-bg-alt)', color: 'var(--gx-text)', border: '1px solid var(--gx-border)', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
                             {name}
                           </span>
                         ))
@@ -289,11 +329,11 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                   </div>
                 </td>
                 <td style={{ ...td, width: 72, whiteSpace: 'nowrap', padding: '2px 6px' }}>
-                  <button onClick={() => onMove(task.id, -1)} disabled={idx === 0}
+                  <button onClick={() => onMove(task.id, -1)} disabled={idx === 0} aria-label={`Move ${task.name} up`}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--gx-text-muted)', fontSize: 13 }} title="Move up">↑</button>
-                  <button onClick={() => onMove(task.id, 1)} disabled={idx === tasks.length - 1}
+                  <button onClick={() => onMove(task.id, 1)} disabled={idx === tasks.length - 1} aria-label={`Move ${task.name} down`}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--gx-text-muted)', fontSize: 13 }} title="Move down">↓</button>
-                  <button onClick={() => onDelete(task.id)}
+                  <button onClick={() => onDelete(task.id)} aria-label={`Delete ${task.name}`}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--gx-error)', fontSize: 14 }} title="Delete">×</button>
                 </td>
               </tr>

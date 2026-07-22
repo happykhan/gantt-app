@@ -3,6 +3,82 @@
 
 @import "tailwindcss";
 
+/* Accessible interaction tokens. The upstream accent is too light for small text on white. */
+:root {
+  --gx-accent: #0f766e;
+  --gx-accent-hover: #115e59;
+  --gx-error: #b91c1c;
+  --gantt-focus: #0f766e;
+}
+
+[data-theme="dark"] {
+  --gx-accent: #5eead4;
+  --gx-accent-hover: #2dd4bf;
+  --gx-error: #fca5a5;
+  --gantt-focus: #5eead4;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+:where(button, a, input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--gantt-focus) !important;
+  outline-offset: 2px !important;
+}
+
+[data-testid="gantt-task"]:focus-visible {
+  box-shadow: 0 0 0 3px var(--gx-surface), 0 0 0 7px var(--gantt-focus) !important;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(2px);
+}
+
+.accessible-dialog:focus { outline: none; }
+
+.chart-title-button,
+.category-name-button {
+  min-height: 28px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--gx-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.chart-title-button {
+  width: 100%;
+  color: var(--gx-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.category-name-button {
+  border-bottom: 1px dashed currentColor;
+  font-size: 12px;
+}
+
+label:focus-within > input[type="color"] + span,
+label:focus-within > span:first-child {
+  outline: 3px solid var(--gantt-focus);
+  outline-offset: 2px;
+}
+
 /* Frappe Gantt overrides */
 .gantt-container {
   overflow-x: auto;
@@ -131,6 +207,8 @@
   color: var(--gx-accent);
   outline: none;
 }
+.workflow-menu-item.is-selected { font-weight: 800; }
+.workflow-menu-item.is-selected::before { content: '✓'; margin-right: 2px; }
 .workflow-menu-item.is-danger { color: var(--gx-error); }
 .workflow-menu-label {
   padding: 7px 11px 4px;
@@ -228,7 +306,7 @@
 }
 .app-footer > a { margin-left: auto; }
 .autosave-indicator { display: inline-flex; align-items: center; gap: 7px; }
-.app-version { opacity: .75; }
+.app-version { opacity: 1; }
 
 .compact-task-list {
   overflow-y: auto;
@@ -303,5 +381,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
   .feedback-dot { animation: none !important; }
 }

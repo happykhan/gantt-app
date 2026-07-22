@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileUpload } from '@genomicx/ui'
 import { parseExcelFile, parsePastedText } from '../utils/parseInput'
+import Modal from './Modal'
 
 const PASTE_PLACEHOLDER = `Paste from Excel or Google Sheets (tab-separated), or CSV:
 
@@ -52,22 +53,28 @@ export default function ImportModal({ onLoad, onClose }) {
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, backdropFilter: 'blur(2px)' }} />
-      <div style={{
+    <Modal
+      titleId="import-title"
+      descriptionId="import-description"
+      onClose={onClose}
+      backdropZIndex={100}
+      dialogZIndex={101}
+      style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
         background: 'var(--gx-surface)', borderRadius: 12, padding: 24,
         width: 'min(92vw, 540px)', maxHeight: '85vh', overflowY: 'auto',
-        zIndex: 101, boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
-      }}>
+        boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
+      }}
+    >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Import tasks</h3>
+          <h3 id="import-title" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Import tasks</h3>
           <button aria-label="Close import" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
+        <p id="import-description" className="sr-only">Import tasks by pasting spreadsheet data or uploading a supported file.</p>
 
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--gx-border)', marginBottom: 20 }}>
+        <div role="tablist" aria-label="Import method" style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--gx-border)', marginBottom: 20 }}>
           {['paste','file'].map(t => (
-            <button key={t} onClick={() => { setTab(t); setError(null) }}
+            <button key={t} role="tab" aria-selected={tab === t} aria-controls={`import-${t}-panel`} onClick={() => { setTab(t); setError(null) }}
               style={{ padding: '8px 16px', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', background: 'none',
                 borderBottom: tab === t ? '2px solid var(--gx-accent)' : '2px solid transparent',
                 color: tab === t ? 'var(--gx-accent)' : 'var(--gx-text-muted)', marginBottom: -1 }}>
@@ -77,8 +84,8 @@ export default function ImportModal({ onLoad, onClose }) {
         </div>
 
         {tab === 'paste' && (
-          <div>
-            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)}
+          <div id="import-paste-panel" role="tabpanel">
+            <textarea aria-label="Task data to import" data-dialog-initial-focus value={pasteText} onChange={e => setPasteText(e.target.value)}
               placeholder={PASTE_PLACEHOLDER} rows={8}
               style={{ width: '100%', fontFamily: 'var(--gx-font-mono)', fontSize: 12,
                 border: '1px solid var(--gx-border)', borderRadius: 6, padding: '10px 12px',
@@ -92,18 +99,21 @@ export default function ImportModal({ onLoad, onClose }) {
         )}
 
         {tab === 'file' && (
-          <FileUpload files={files} onFilesChange={handleFilesChange} multiple={false}
-            accept=".xlsx,.xls,.csv,.json"
-            label="Drop Excel, CSV, or .json project file"
-            hint="Columns: Task Name, Start Date, End Date (names are flexible)" />
+          <div id="import-file-panel" role="tabpanel">
+            <FileUpload files={files} onFilesChange={handleFilesChange} multiple={false}
+              accept=".xlsx,.xls,.csv,.json"
+              label="Drop Excel, CSV, or .json project file"
+              hint="Columns: Task Name, Start Date, End Date (names are flexible)" />
+          </div>
         )}
 
-        {error && <div className="gx-alert gx-alert-error" style={{ marginTop: 12 }}>{error}</div>}
+        {error && <div className="gx-alert gx-alert-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
 
         {/* Column reference */}
         <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--gx-bg-alt)', borderRadius: 8, border: '1px solid var(--gx-border)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gx-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Supported columns</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <caption className="sr-only">Supported import columns</caption>
             <thead>
               <tr>
                 {['Column', 'Required?', 'Example'].map(h => (
@@ -131,7 +141,6 @@ export default function ImportModal({ onLoad, onClose }) {
             Column names are matched flexibly. Copy directly from Excel or Google Sheets and paste into the text area.
           </p>
         </div>
-      </div>
-    </>
+    </Modal>
   )
 }

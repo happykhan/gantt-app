@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Modal from './Modal'
 
 const CAT_COLORS = ['#6366f1','#0d9488','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16']
 
@@ -55,17 +56,15 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
       }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40, backdropFilter: 'blur(2px)' }}
-      />
-
-      <div style={panelStyle}>
+    <Modal
+      titleId="task-editor-title"
+      descriptionId="task-editor-description"
+      onClose={onClose}
+      style={panelStyle}
+    >
         {/* Drag handle — mobile only */}
         {!isDesktop && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+          <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gx-border)' }} />
           </div>
         )}
@@ -73,9 +72,10 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
         <div style={{ padding: isDesktop ? '20px 24px 24px' : '8px 20px 20px' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Edit task</h3>
+            <h3 id="task-editor-title" style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Edit task</h3>
             <button aria-label="Close task editor" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: 'var(--gx-text-muted)', cursor: 'pointer', width: 44, height: 44, borderRadius: 8, lineHeight: 1 }}>×</button>
           </div>
+          <p id="task-editor-description" className="sr-only">Edit task details, dates, order and dependencies.</p>
 
           {/* Name */}
           <div style={{ marginBottom: 14 }}>
@@ -83,6 +83,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
             <input
               type="text"
               aria-label="Task name"
+              data-dialog-initial-focus
               value={name}
               onChange={e => setName(e.target.value)}
               style={inputStyle}
@@ -110,6 +111,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
                 <span style={{ width: 14, height: 14, borderRadius: 3, background: catColor, border: '1px solid rgba(0,0,0,0.2)', display: 'block' }} />
                 <input
                   type="color"
+                  aria-label={`Change colour for category ${category || 'uncategorised'}`}
                   value={catColor}
                   onChange={e => onColorChange?.(category, e.target.value)}
                   style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
@@ -150,7 +152,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <label title="Pick a custom colour for this task" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 28, height: 28, borderRadius: 6, background: taskColor || catColor, border: '2px solid var(--gx-border)', display: 'block', flexShrink: 0 }} />
-                <input type="color" value={taskColor || catColor} onChange={e => setTaskColor(e.target.value)}
+                <input type="color" aria-label={`Choose a custom colour for ${name || 'this task'}`} value={taskColor || catColor} onChange={e => setTaskColor(e.target.value)}
                   style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }} />
                 <span style={{ fontSize: 13, color: 'var(--gx-text-muted)' }}>{taskColor ? 'Custom' : 'From category'}</span>
               </label>
@@ -188,8 +190,8 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
 
           {/* Reorder */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button onClick={onMoveUp} disabled={!onMoveUp} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task up">↑</button>
-            <button onClick={onMoveDown} disabled={!onMoveDown} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task down">↓</button>
+            <button onClick={onMoveUp} disabled={!onMoveUp} aria-label={`Move ${name} up`} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task up">↑</button>
+            <button onClick={onMoveDown} disabled={!onMoveDown} aria-label={`Move ${name} down`} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '10px', fontSize: 18 }} title="Move task down">↓</button>
           </div>
 
           {/* Actions */}
@@ -205,7 +207,6 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
             </button>
           </div>
         </div>
-      </div>
-    </>
+    </Modal>
   )
 }
