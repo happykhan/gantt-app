@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useReducer } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, useReducer } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
 import { toPng } from 'html-to-image'
@@ -6,10 +6,12 @@ import CustomGantt from './components/CustomGantt'
 import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
+import ScheduleWarnings from './components/ScheduleWarnings'
 import { generateSampleData } from './utils/parseInput'
 import { parseProjectObject, parseProjectText, serialiseProject } from './utils/projectSchema'
 import { createHistory, historyReducer } from './utils/editorHistory'
 import { loadAutosave, loadDisplaySettings, saveAutosave, saveDisplaySettings } from './utils/storage'
+import { moveTaskAfterPredecessors, removeTaskFromGraph, validateDependencyGraph } from './utils/dependencyGraph'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
@@ -99,6 +101,7 @@ function GanttPage({ initialProject }) {
 
   const categories = [...new Set(tasks.map(t => t.category).filter(Boolean))]
   const selectedTask = tasks.find(t => t.id === selectedId)
+  const dependencyGraph = useMemo(() => validateDependencyGraph(tasks), [tasks])
   const setSelectedId = useCallback(value => {
     replaceTransient(state => ({
       ...state,
@@ -130,12 +133,26 @@ function GanttPage({ initialProject }) {
     })
   }
   function handleTaskChange(id, changes) {
+    const candidate = tasks.map(task => task.id === id ? { ...task, ...changes } : task)
+    const graph = validateDependencyGraph(candidate)
+    if (!graph.valid) {
+      setProjectError(`Change rejected. ${graph.errors[0].message}`)
+      return false
+    }
     transact(state => ({
       ...state,
       tasks: state.tasks.map(task => task.id === id ? { ...task, ...changes } : task),
     }))
+    setProjectError(null)
+    return true
   }
   function handleTaskModalSave(id, changes, categoryColour) {
+    const candidate = tasks.map(task => task.id === id ? { ...task, ...changes } : task)
+    const graph = validateDependencyGraph(candidate)
+    if (!graph.valid) {
+      setProjectError(`Change rejected. ${graph.errors[0].message}`)
+      return false
+    }
     transact(state => ({
       ...state,
       tasks: state.tasks.map(task => task.id === id ? { ...task, ...changes } : task),
@@ -143,18 +160,14 @@ function GanttPage({ initialProject }) {
         ? { ...state.categoryColors, [categoryColour.category]: categoryColour.color }
         : state.categoryColors,
     }))
+    setProjectError(null)
+    return true
   }
   const handleDelete = useCallback((id) => {
     transact(state => {
-      const remaining = state.tasks.filter(task => task.id !== id)
       return {
         ...state,
-        tasks: remaining.map(task => ({
-          ...task,
-          dependencies: task.dependencies
-            ? task.dependencies.split(',').map(value => value.trim()).filter(dependency => dependency !== id).join(', ')
-            : '',
-        })),
+        tasks: removeTaskFromGraph(state.tasks, id),
         selectedId: state.selectedId === id ? null : state.selectedId,
       }
     })
@@ -219,6 +232,11 @@ function GanttPage({ initialProject }) {
     transact(state => ({ ...state, tasks: [...state.tasks, newTask], selectedId: newTask.id }))
   }
   function handleImport({ kind, project }) {
+    const graph = validateDependencyGraph(project.tasks)
+    if (!graph.valid) {
+      setProjectError(`Import rejected. ${graph.errors[0].message}`)
+      return false
+    }
     transact(state => ({
       ...state,
       tasks: project.tasks,
@@ -228,6 +246,13 @@ function GanttPage({ initialProject }) {
     }))
     setShowImport(false)
     setProjectError(null)
+    return true
+  }
+  function handleMoveAfterPredecessors(id) {
+    transact(state => ({
+      ...state,
+      tasks: moveTaskAfterPredecessors(state.tasks, id),
+    }))
   }
   function handleClear() {
     transact(state => ({ ...state, tasks: [], chartTitle: '', categoryColors: {}, selectedId: null }))
@@ -552,6 +577,12 @@ function GanttPage({ initialProject }) {
               </div>
             )}
           </div>
+
+          <ScheduleWarnings
+            warnings={dependencyGraph.scheduleWarnings}
+            onMove={handleMoveAfterPredecessors}
+            isMobile={isMobile}
+          />
 
           {tasks.length === 0 ? (
             /* ── Empty state ──────────────────────────────────────────────── */

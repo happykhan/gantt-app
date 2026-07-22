@@ -1,4 +1,5 @@
 import { useRef, useCallback, useMemo, useState } from 'react'
+import { validateDependencyGraph } from '../utils/dependencyGraph'
 
 // ── date helpers ──────────────────────────────────────────────────────────────
 function parseDate(str) { return new Date(str + 'T00:00:00') }
@@ -142,6 +143,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   }, [tasks, viewMode, colPx])
 
   const categories = useMemo(() => [...new Set(tasks.map(t => t.category).filter(Boolean))], [tasks])
+  const dependencyGraph = useMemo(() => validateDependencyGraph(tasks), [tasks])
 
   function getCatColor(cat) {
     const idx = categories.indexOf(cat)
@@ -305,13 +307,14 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(100,116,139,0.9)" strokeWidth="1.5" />
             </marker>
           </defs>
-          {tasks.map((task, toIdx) => {
-            if (!task.dependencies) return null
-            const depIds = task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
-            return depIds.map(depId => {
-              const fromIdx = tasks.findIndex(t => t.id === depId)
-              if (fromIdx < 0) return null
-              const fromTask = tasks[fromIdx]
+          {dependencyGraph.renderEdges.map(edge => {
+              const {
+                predecessorId: depId,
+                predecessor: fromTask,
+                predecessorIndex: fromIdx,
+                task,
+                taskIndex: toIdx,
+              } = edge
               const isDraggingFrom = dragState?.taskId === fromTask.id
               const isDraggingTo = dragState?.taskId === task.id
               let fe = fromTask.end
@@ -356,7 +359,6 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   strokeDasharray="4 2" markerEnd="url(#dep-dot)"
                 />
               )
-            })
           })}
         </svg>
         {/* Today line */}

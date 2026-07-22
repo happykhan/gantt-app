@@ -24,15 +24,22 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
   const [deps, setDeps] = useState(() =>
     new Set(task?.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
+  const [dependencyQuery, setDependencyQuery] = useState('')
   const isDesktop = useIsDesktop()
 
   if (!task) return null
 
+  const otherTasks = tasks.filter(item => item.id !== task.id)
+  const filteredDependencyTasks = dependencyQuery.trim()
+    ? otherTasks.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(dependencyQuery.trim().toLowerCase()))
+    : otherTasks
+
   function save() {
     const changes = { name, start, end: end >= start ? end : start, category, progress, dependencies: [...deps].join(', '), color: taskColor || undefined }
-    if (onSave) onSave(task.id, changes, categoryColor ? { category, color: categoryColor } : null)
-    else onUpdate(task.id, changes)
-    onClose()
+    const saved = onSave
+      ? onSave(task.id, changes, categoryColor ? { category, color: categoryColor } : null)
+      : onUpdate(task.id, changes)
+    if (saved !== false) onClose()
   }
 
   const catIdx = categories.indexOf(category)
@@ -163,11 +170,19 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
           </div>
 
           {/* Depends on */}
-          {tasks.filter(t => t.id !== task.id).length > 0 && (
+          {otherTasks.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Depends on</label>
+              <input
+                type="search"
+                value={dependencyQuery}
+                onChange={event => setDependencyQuery(event.target.value)}
+                aria-label="Search predecessor tasks"
+                placeholder="Search by task name or ID"
+                style={{ ...inputStyle, padding: '8px 10px', fontSize: 13, marginBottom: 6 }}
+              />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', padding: '4px 0' }}>
-                {tasks.filter(t => t.id !== task.id).map(t => (
+                {filteredDependencyTasks.map(t => (
                   <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
@@ -179,9 +194,10 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
                       })}
                       style={{ accentColor: 'var(--gx-accent)', width: 18, height: 18, flexShrink: 0 }}
                     />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                    <span title={`${t.name} (${t.id})`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
                   </label>
                 ))}
+                {!filteredDependencyTasks.length && <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>No matching tasks</span>}
               </div>
             </div>
           )}

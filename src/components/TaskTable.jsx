@@ -9,7 +9,11 @@ function DepsModal({ task, tasks, onSave, onClose }) {
   const [deps, setDeps] = useState(() =>
     new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
   )
+  const [query, setQuery] = useState('')
   const others = tasks.filter(t => t.id !== task.id)
+  const filtered = query.trim()
+    ? others.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.trim().toLowerCase()))
+    : others
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, backdropFilter: 'blur(2px)' }} />
@@ -24,8 +28,16 @@ function DepsModal({ task, tasks, onSave, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--gx-text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--gx-text-muted)' }}>{task.name}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {others.map(t => (
+        <input
+          type="search"
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          aria-label="Search predecessor tasks"
+          placeholder="Search by task name or ID"
+          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', marginBottom: 10, border: '1px solid var(--gx-border)', borderRadius: 7, background: 'var(--gx-bg)', color: 'var(--gx-text)', fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, maxHeight: 280, overflowY: 'auto' }}>
+          {filtered.map(t => (
             <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--gx-text)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -37,12 +49,13 @@ function DepsModal({ task, tasks, onSave, onClose }) {
                 })}
                 style={{ accentColor: 'var(--gx-accent)', width: 16, height: 16, flexShrink: 0 }}
               />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+              <span title={`${t.name} (${t.id})`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
             </label>
           ))}
+          {!filtered.length && <span style={{ fontSize: 12, color: 'var(--gx-text-muted)' }}>No matching tasks</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => { onSave([...deps].join(', ')); onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
+          <button onClick={() => { if (onSave([...deps].join(', ')) !== false) onClose() }} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Save</button>
           <button onClick={onClose} className="gx-btn gx-btn-secondary" style={{ flex: 1, padding: '9px', fontSize: 14 }}>Cancel</button>
         </div>
       </div>

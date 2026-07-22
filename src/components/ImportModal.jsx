@@ -124,8 +124,7 @@ export default function ImportModal({ onLoad, onClose }) {
 
   function confirmImport() {
     if (!preview?.project || preview.errors.length) return
-    onLoad({ kind: preview.kind, project: preview.project })
-    onClose()
+    if (onLoad({ kind: preview.kind, project: preview.project }) !== false) onClose()
   }
 
   return (

@@ -1,3 +1,5 @@
+import { validateDependencyGraph } from './dependencyGraph'
+
 export const PROJECT_SCHEMA_VERSION = 1
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
@@ -96,7 +98,7 @@ export function validateProject(project) {
     return { project: normalised, errors }
   }
 
-  const ids = new Map()
+  const taskRows = []
   project.tasks.forEach((rawTask, index) => {
     const row = index + 1
     if (!rawTask || typeof rawTask !== 'object' || Array.isArray(rawTask)) {
@@ -115,14 +117,8 @@ export function validateProject(project) {
       ...(rawTask.color == null || rawTask.color === '' ? {} : { color: rawTask.color }),
     }
 
-    if (!task.id) {
-      errors.push(error(row, 'id', 'Task ID is required.'))
-    } else if (!ID_PATTERN.test(task.id)) {
+    if (task.id && !ID_PATTERN.test(task.id)) {
       errors.push(error(row, 'id', 'Task ID may only contain letters, numbers, dots, underscores, colons and hyphens.'))
-    } else if (ids.has(task.id)) {
-      errors.push(error(row, 'id', `Task ID “${task.id}” duplicates row ${ids.get(task.id)}.`))
-    } else {
-      ids.set(task.id, row)
     }
 
     if (!task.name) errors.push(error(row, 'name', 'Task name is required.'))
@@ -143,24 +139,16 @@ export function validateProject(project) {
     }
 
     normalised.tasks.push(task)
+    taskRows.push(row)
   })
 
-  const idSet = new Set(normalised.tasks.map(task => task.id).filter(Boolean))
-  normalised.tasks.forEach((task, index) => {
-    const row = index + 1
-    const dependencies = task.dependencies.split(',').map(value => value.trim()).filter(Boolean)
-    const seen = new Set()
-    dependencies.forEach(dependency => {
-      if (dependency === task.id) {
-        errors.push(error(row, 'dependencies', `Task “${task.id}” cannot depend on itself.`))
-      } else if (!idSet.has(dependency)) {
-        errors.push(error(row, 'dependencies', `Dependency “${dependency}” does not match a task ID.`))
-      } else if (seen.has(dependency)) {
-        errors.push(error(row, 'dependencies', `Dependency “${dependency}” is repeated.`))
-      }
-      seen.add(dependency)
-    })
-    task.dependencies = dependencies.join(', ')
+  const graph = validateDependencyGraph(normalised.tasks)
+  graph.errors.forEach(item => {
+    errors.push(error(
+      taskRows[item.taskIndex] ?? null,
+      item.code.includes('task-id') ? 'id' : 'dependencies',
+      item.message,
+    ))
   })
 
   return { project: normalised, errors }
