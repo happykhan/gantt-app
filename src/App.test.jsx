@@ -36,7 +36,8 @@ describe('App project workflow', () => {
     await waitFor(() => {
       const saved = JSON.parse(localStorage.getItem('gantt-app-v1'))
       expect(saved.tasks[0].name).toBe('Updated study design')
-      expect(saved.chartTitle).toBe('Grant plan')
+      expect(saved.schemaVersion).toBe(1)
+      expect(saved.title).toBe('Grant plan')
       expect(saved.categoryColors).toEqual({ WP1: '#0d9488' })
     })
   })
@@ -52,5 +53,44 @@ describe('App project workflow', () => {
     expect(screen.getByRole('button', { name: 'PNG' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'SVG' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PDF' })).toBeInTheDocument()
+  })
+
+  it('does not partially replace the current project when a loaded file is invalid', async () => {
+    const { container } = render(<App />)
+    const input = container.querySelector('input[type="file"][accept=".json"]')
+    const invalidProject = new File([JSON.stringify({
+      schemaVersion: 1,
+      title: 'Replacement title',
+      categoryColors: {},
+      tasks: [{ ...savedProject.tasks[0], start: '2026-99-99' }],
+    })], 'invalid.json', { type: 'application/json' })
+
+    fireEvent.change(input, { target: { files: [invalidProject] } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Project was not loaded')
+    expect(screen.getByDisplayValue('Study design')).toBeInTheDocument()
+    expect(screen.getByText('Grant plan')).toBeInTheDocument()
+  })
+
+  it('loads empty tasks, title and colours as a complete project replacement', async () => {
+    const { container } = render(<App />)
+    const input = container.querySelector('input[type="file"][accept=".json"]')
+    const emptyProject = new File([JSON.stringify({
+      schemaVersion: 1,
+      title: '',
+      categoryColors: {},
+      tasks: [],
+    })], 'empty.json', { type: 'application/json' })
+
+    fireEvent.change(input, { target: { files: [emptyProject] } })
+
+    expect(await screen.findByText('Build your Gantt chart')).toBeInTheDocument()
+    expect(screen.getByText('Tap to add chart title…')).toBeInTheDocument()
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem('gantt-app-v1'))
+      expect(saved.tasks).toEqual([])
+      expect(saved.title).toBe('')
+      expect(saved.categoryColors).toEqual({})
+    })
   })
 })

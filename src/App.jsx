@@ -7,6 +7,7 @@ import BottomSheet from './components/BottomSheet'
 import ImportModal from './components/ImportModal'
 import TaskTable from './components/TaskTable'
 import { generateSampleData } from './utils/parseInput'
+import { parseProjectObject, parseProjectText, serialiseProject } from './utils/projectSchema'
 
 let idCounter = 0
 function makeId() { return `task-${Date.now()}-${++idCounter}` }
@@ -18,9 +19,14 @@ function loadInitial() {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) {
-      const saved = JSON.parse(raw)
-      if (Array.isArray(saved.tasks) && saved.tasks.length)
-        return { tasks: saved.tasks, chartTitle: saved.chartTitle || '', categoryColors: saved.categoryColors || {} }
+      const result = parseProjectObject(JSON.parse(raw))
+      if (result.project && result.errors.length === 0) {
+        return {
+          tasks: result.project.tasks,
+          chartTitle: result.project.title,
+          categoryColors: result.project.categoryColors,
+        }
+      }
     }
   } catch { /* Local storage may be unavailable or contain invalid data. */ }
   return { tasks: [], chartTitle: '', categoryColors: {} }
@@ -57,6 +63,7 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900)
   const [showMore, setShowMore] = useState(false)
   const [showExport, setShowExport] = useState(false)
+  const [projectError, setProjectError] = useState(null)
 
   useEffect(() => {
     function onResize() { setIsMobile(window.innerWidth < 900) }
@@ -216,9 +223,17 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
     setTasks(prev => [...prev, newTask])
     setSelectedId(newTask.id)
   }
-  function handleImport(newTasks) {
+  function handleImport({ kind, project }) {
     pushUndo()
-    setTasks(newTasks.map(t => ({ ...t, id: t.id || makeId() })))
+    setTasks(project.tasks)
+    if (kind === 'project') {
+      setChartTitle(project.title)
+      setCategoryColors(project.categoryColors)
+    } else {
+      setCategoryColors(project.categoryColors)
+    }
+    setSelectedId(null)
+    setProjectError(null)
   }
   function handleClear() {
     pushUndo()
@@ -230,7 +245,14 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   }
 
   function saveProject() {
-    const blob = new Blob([JSON.stringify({ tasks, chartTitle, categoryColors }, null, 2)], { type: 'application/json' })
+    const candidate = serialiseProject({ tasks, chartTitle, categoryColors })
+    const result = parseProjectObject(candidate)
+    if (!result.project || result.errors.length) {
+      setProjectError(`Project cannot be saved: ${result.errors[0]?.message || 'validation failed.'}`)
+      return
+    }
+    setProjectError(null)
+    const blob = new Blob([JSON.stringify(result.project, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'gantt-project.json'
@@ -240,13 +262,21 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
   function loadProject(file) {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = e => {
-      try {
-        const { tasks: loaded, chartTitle: loadedTitle, categoryColors: loadedColors } = JSON.parse(e.target.result)
-        if (Array.isArray(loaded) && loaded.length) setTasks(loaded)
-        if (loadedTitle) setChartTitle(loadedTitle)
-        if (loadedColors && typeof loadedColors === 'object') setCategoryColors(loadedColors)
-      } catch { /* ignore */ }
+    reader.onerror = () => setProjectError('The project file could not be read.')
+    reader.onload = event => {
+      const result = parseProjectText(event.target.result)
+      if (!result.project || result.errors.length) {
+        const first = result.errors[0]
+        const location = first?.row != null ? `Task ${first.row}: ` : ''
+        setProjectError(`Project was not loaded. ${location}${first?.message || 'Validation failed.'}`)
+        return
+      }
+      pushUndo()
+      setTasks(result.project.tasks)
+      setChartTitle(result.project.title)
+      setCategoryColors(result.project.categoryColors)
+      setSelectedId(null)
+      setProjectError(null)
     }
     reader.readAsText(file)
   }
@@ -502,6 +532,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
           </>
         )}
       </div>
+
+      {projectError && (
+        <div className="gx-alert gx-alert-error" role="alert" style={{ margin: '8px 10px 0', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+          <span>{projectError}</span>
+          <button onClick={() => setProjectError(null)} aria-label="Dismiss project error" style={{ border: 0, background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {/* Gantt chart area */}
@@ -847,7 +884,7 @@ function App() {
   // Autosave
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ tasks, chartTitle, categoryColors }))
+      localStorage.setItem(LS_KEY, JSON.stringify(serialiseProject({ tasks, chartTitle, categoryColors })))
     } catch { /* Autosave is best-effort when storage is unavailable. */ }
   }, [tasks, chartTitle, categoryColors])
 
