@@ -97,7 +97,7 @@ Use **Save** to export your current project, and **Load** (or drop the file on t
 ## Stack
 
 - [React](https://react.dev) + [Vite](https://vite.dev)
-- [frappe-gantt](https://frappe.io/gantt) — Gantt chart rendering
+- Custom React timeline renderer with tested date, dependency and responsive geometry modules
 - [SheetJS (xlsx)](https://sheetjs.com) — Excel parsing
 - [html-to-image](https://github.com/bubkoo/html-to-image) — PNG export
 - [Tailwind CSS v4](https://tailwindcss.com) + [@genomicx/ui](https://github.com/genomicx/genomicx-ui) design tokens

@@ -1,65 +1,20 @@
 import { useRef, useCallback, useMemo, useState } from 'react'
-
-// ── date helpers ──────────────────────────────────────────────────────────────
-function parseDate(str) { return new Date(str + 'T00:00:00') }
-function toStr(d) {
-  if (!(d instanceof Date)) return String(d)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-function daysBetween(a, b) { return Math.round((parseDate(b) - parseDate(a)) / 86400000) }
-function addDays(str, n) { const d = parseDate(str); d.setDate(d.getDate() + n); return toStr(d) }
-function dateToX(dateStr, rangeStartStr, pxPerDay) {
-  return daysBetween(rangeStartStr, dateStr) * pxPerDay
-}
-
-function floorToUnit(date, unit) {
-  const d = new Date(date)
-  if (unit === 'Month') { d.setDate(1); return d }
-  if (unit === 'Quarter') { d.setDate(1); d.setMonth(Math.floor(d.getMonth() / 3) * 3); return d }
-  if (unit === 'Week') {
-    const day = d.getDay() // 0=Sun, 1=Mon…6=Sat
-    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)) // back to Monday
-    return d
-  }
-  d.setMonth(0); d.setDate(1); return d
-}
-function advanceUnit(date, unit) {
-  const d = new Date(date)
-  if (unit === 'Month') { d.setMonth(d.getMonth() + 1); return d }
-  if (unit === 'Quarter') { d.setMonth(d.getMonth() + 3); return d }
-  if (unit === 'Week') { d.setDate(d.getDate() + 7); return d }
-  d.setFullYear(d.getFullYear() + 1); return d
-}
-function colLabel(date, unit) {
-  if (unit === 'Week') return `${date.toLocaleString('default',{month:'short'})} ${date.getDate()}`
-  if (unit === 'Month') return date.toLocaleString('default', { month: 'short', year: '2-digit' })
-  if (unit === 'Quarter') return `Q${Math.floor(date.getMonth() / 3) + 1} '${String(date.getFullYear()).slice(2)}`
-  return String(date.getFullYear())
-}
-
-function buildColumns(rangeStart, rangeEnd, unit) {
-  const cols = []
-  let cur = floorToUnit(new Date(rangeStart), unit)
-  while (cur <= rangeEnd) {
-    cols.push({ date: new Date(cur), label: colLabel(cur, unit) })
-    cur = advanceUnit(cur, unit)
-  }
-  return cols
-}
+import {
+  addDays,
+  buildDependencyPaths,
+  buildTimelineGeometry,
+  dateToX,
+  formatDate,
+  isLightColour,
+  taskDatesDuringDrag,
+} from '../chart/geometry'
 
 // ── constants ─────────────────────────────────────────────────────────────────
-const COL_PX = { Week: 56, Month: 80, Quarter: 110, Year: 130 }
 const LABEL_W = 160
 const HEADER_H = 44
 const EDGE_PX = 14
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
-
-function isLight(hex) {
-  const h = hex.replace('#','')
-  const [r,g,b] = [0,2,4].map(i => parseInt(h.slice(i,i+2),16))
-  return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.55
-}
 
 // ── component ─────────────────────────────────────────────────────────────────
 export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
@@ -103,28 +58,14 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     e.preventDefault()
   }
 
-  const baseColPx = COL_PX[viewMode] || 80
-
-  const { rangeStartStr, columns, totalW, pxPerDay, colPx } = useMemo(() => {
-    if (!tasks.length) return { rangeStartStr: toStr(new Date()), columns: [], totalW: Math.max(400, availableWidth), pxPerDay: 1, colPx: baseColPx }
-
-    const starts = tasks.map(t => parseDate(t.start))
-    const ends   = tasks.map(t => parseDate(t.end))
-    const minD = new Date(Math.min(...starts.map(d => d.getTime())))
-    const maxD = new Date(Math.max(...ends.map(d => d.getTime())))
-
-    const padStart = floorToUnit(new Date(minD), viewMode)
-    const padEnd   = advanceUnit(floorToUnit(new Date(maxD), viewMode), viewMode)
-
-    const cols = buildColumns(padStart, padEnd, viewMode)
-    const rangeStartStr = toStr(padStart)
-    const totalDays = daysBetween(rangeStartStr, toStr(padEnd)) || 1
-    const colPx = Math.max(baseColPx, availableWidth > 0 ? availableWidth / Math.max(cols.length, 1) : 0)
-    const totalW = Math.max(cols.length * colPx, 300, availableWidth)
-    const pxPerDay = totalW / totalDays
-
-    return { rangeStartStr, columns: cols, totalW, pxPerDay, colPx }
-  }, [tasks, viewMode, baseColPx, availableWidth])
+  const geometry = useMemo(() => buildTimelineGeometry(tasks, viewMode, availableWidth), [tasks, viewMode, availableWidth])
+  const {
+    rangeStart: rangeStartStr,
+    columns,
+    totalWidth: totalW,
+    pixelsPerDay: pxPerDay,
+    columnWidth: colPx,
+  } = geometry
 
   const categories = useMemo(() => [...new Set(tasks.map(t => t.category).filter(Boolean))], [tasks])
 
@@ -231,9 +172,14 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     if (labelColRef.current) labelColRef.current.scrollTop = e.currentTarget.scrollTop
   }, [])
 
+  const dependencyPaths = useMemo(
+    () => buildDependencyPaths(tasks, rangeStartStr, pxPerDay, ROW_H, dragState),
+    [ROW_H, dragState, pxPerDay, rangeStartStr, tasks],
+  )
+
   if (!tasks.length) return <div style={{ padding: 24, color: 'var(--gx-text-muted)' }}>No tasks yet — use the + button to add one.</div>
 
-  const todayStr = toStr(new Date())
+  const todayStr = formatDate(new Date())
   const todayX = dateToX(todayStr, rangeStartStr, pxPerDay)
 
   const legend = categories.length > 0 && (
@@ -298,75 +244,18 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <circle cx="4" cy="4" r="3" fill="none" stroke="rgba(100,116,139,0.9)" strokeWidth="1.5" />
             </marker>
           </defs>
-          {tasks.map((task, toIdx) => {
-            if (!task.dependencies) return null
-            const depIds = task.dependencies.split(',').map(s => s.trim()).filter(Boolean)
-            return depIds.map(depId => {
-              const fromIdx = tasks.findIndex(t => t.id === depId)
-              if (fromIdx < 0) return null
-              const fromTask = tasks[fromIdx]
-              const isDraggingFrom = dragState?.taskId === fromTask.id
-              const isDraggingTo = dragState?.taskId === task.id
-              let fe = fromTask.end
-              let ts = task.start
-              if (isDraggingFrom) {
-                const d = dragState.dxDays; const { type, origEnd } = dragState
-                if (type === 'move') { fe = addDays(origEnd, d) }
-                else if (type === 'resize-end') { fe = addDays(origEnd, d) }
-              }
-              if (isDraggingTo) {
-                const d = dragState.dxDays; const { type, origStart } = dragState
-                if (type === 'move') { ts = addDays(origStart, d) }
-                else if (type === 'resize-start') { ts = addDays(origStart, d) }
-              }
-              const x1 = dateToX(fe, rangeStartStr, pxPerDay)
-              const y1 = fromIdx * ROW_H + ROW_H / 2
-              const x2 = dateToX(ts, rangeStartStr, pxPerDay)
-              const y2 = toIdx * ROW_H + ROW_H / 2
-
-              const MARGIN = 18
-              const APPROACH = 10
-              const STUB = 6
-
-              let arrowPath
-              if (x2 >= x1) {
-                const ex = Math.min(MARGIN, Math.max(2, (x2 - x1) / 2))
-                arrowPath = `M${x1},${y1} H${x1+ex} V${y2} H${x2}`
-              } else {
-                const leftApproach = Math.max(2, x2 - APPROACH)
-                if (toIdx > fromIdx) {
-                  const seam = fromIdx * ROW_H + ROW_H - 1
-                  arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
-                } else {
-                  const seam = (toIdx + 1) * ROW_H + 1
-                  arrowPath = `M${x1},${y1} H${x1+STUB} V${seam} H${leftApproach} V${y2} H${x2}`
-                }
-              }
-              return (
-                <path key={`${depId}-${task.id}`}
-                  d={arrowPath}
-                  fill="none" stroke="rgba(100,116,139,0.7)" strokeWidth="1.5"
-                  strokeDasharray="4 2" markerEnd="url(#dep-dot)"
-                />
-              )
-            })
-          })}
+          {dependencyPaths.map(({ key, path }) => (
+            <path key={key} d={path} fill="none" stroke="rgba(100,116,139,0.7)" strokeWidth="1.5" strokeDasharray="4 2" markerEnd="url(#dep-dot)" />
+          ))}
         </svg>
         {/* Today line */}
         {todayX > 0 && todayX < totalW && (
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: todayX, width: 2, background: 'var(--gx-accent)', opacity: 0.5, zIndex: 1, pointerEvents: 'none' }} />
         )}
         {/* Bars */}
-        {tasks.map((task, rowIdx) => {
-          const isDragging = dragState?.taskId === task.id
-          let s = task.start, e = task.end
-          if (isDragging) {
-            const { type, origStart, origEnd } = dragState
-            const d = dragState.dxDays
-            if (type === 'move')              { s = addDays(origStart, d); e = addDays(origEnd, d) }
-            else if (type === 'resize-start') { s = addDays(origStart, d); if (s >= e) s = addDays(e, -1) }
-            else                              { e = addDays(origEnd,   d); if (e <= s) e = addDays(s, 1) }
-          }
+          {tasks.map((task, rowIdx) => {
+            const isDragging = dragState?.taskId === task.id
+            const { start: s, end: e } = taskDatesDuringDrag(task, dragState)
           const x = dateToX(s, rangeStartStr, pxPerDay)
           const fill = task.color || getCatColor(task.category)
           const isMilestone = task.start === task.end
@@ -399,7 +288,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           }
 
           const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
-          const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
+          const textCol = isLightColour(fill) ? '#1a1a1a' : '#fff'
           const progressW = w * ((task.progress ?? 0) / 100)
           const isSelected = selectedId === task.id
 
