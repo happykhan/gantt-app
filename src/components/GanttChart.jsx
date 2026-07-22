@@ -94,8 +94,7 @@ export default function GanttChart({ tasks, viewMode, onTaskChange, onTaskClick,
       on_progress_change(task, progress) { onTaskChange(task.id, { progress }) },
       on_click(task) { onTaskClick(task.id) },
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks.length > 0 ? tasks[0].id : null])
+  }, [onTaskChange, onTaskClick, tasks, toGanttTasks, viewMode])
 
   // Refresh data
   useEffect(() => {

@@ -25,18 +25,6 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
   )
   const isDesktop = useIsDesktop()
 
-  useEffect(() => {
-    if (task) {
-      setName(task.name)
-      setStart(task.start)
-      setEnd(task.end)
-      setCategory(task.category || '')
-      setProgress(task.progress ?? 0)
-      setTaskColor(task.color || '')
-      setDeps(new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : []))
-    }
-  }, [task?.id])
-
   if (!task) return null
 
   function save() {
