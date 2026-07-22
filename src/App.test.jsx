@@ -48,9 +48,28 @@ describe('App project workflow', () => {
     expect(screen.getByText('Import tasks')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close import' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Export ▾' }))
-    expect(screen.getByRole('button', { name: 'PNG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'SVG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PDF' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(screen.getByRole('menuitem', { name: 'PNG image' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'SVG image' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'PDF document' })).toBeInTheDocument()
+  })
+
+  it('groups view controls and keeps fit and reset actions discoverable', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'View' }))
+    expect(screen.getByRole('menuitem', { name: 'Fit to project' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Reset zoom/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Week' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Year' })).toBeInTheDocument()
+  })
+
+  it('keeps the primary workflow available without opening Help', () => {
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Task' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit tasks' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dependencies' })).toBeInTheDocument()
   })
 })

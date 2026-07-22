@@ -62,10 +62,11 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
+  const touchRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
   const [labelWidth, setLabelWidth] = useState(() => {
@@ -102,10 +103,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     e.preventDefault()
   }
 
-  const colPx = COL_PX[viewMode] || 80
+  const baseColPx = COL_PX[viewMode] || 80
 
-  const { rangeStartStr, columns, totalW, pxPerDay } = useMemo(() => {
-    if (!tasks.length) return { rangeStartStr: toStr(new Date()), columns: [], totalW: 400, pxPerDay: 1 }
+  const { rangeStartStr, columns, totalW, pxPerDay, colPx } = useMemo(() => {
+    if (!tasks.length) return { rangeStartStr: toStr(new Date()), columns: [], totalW: Math.max(400, availableWidth), pxPerDay: 1, colPx: baseColPx }
 
     const starts = tasks.map(t => parseDate(t.start))
     const ends   = tasks.map(t => parseDate(t.end))
@@ -118,11 +119,12 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     const cols = buildColumns(padStart, padEnd, viewMode)
     const rangeStartStr = toStr(padStart)
     const totalDays = daysBetween(rangeStartStr, toStr(padEnd)) || 1
-    const totalW = Math.max(cols.length * colPx, 300)
+    const colPx = Math.max(baseColPx, availableWidth > 0 ? availableWidth / Math.max(cols.length, 1) : 0)
+    const totalW = Math.max(cols.length * colPx, 300, availableWidth)
     const pxPerDay = totalW / totalDays
 
-    return { rangeStartStr, columns: cols, totalW, pxPerDay }
-  }, [tasks, viewMode, colPx])
+    return { rangeStartStr, columns: cols, totalW, pxPerDay, colPx }
+  }, [tasks, viewMode, baseColPx, availableWidth])
 
   const categories = useMemo(() => [...new Set(tasks.map(t => t.category).filter(Boolean))], [tasks])
 
@@ -172,21 +174,36 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
   // ── touch drag ──────────────────────────────────────────────────────────────
   const onTouchStart = useCallback((e, task) => {
     const touch = e.touches[0]
+    if (isMobile) {
+      touchRef.current = { taskId: task.id, startX: touch.clientX, startY: touch.clientY, moved: false }
+      return
+    }
     initDrag(touch.clientX, e.currentTarget.getBoundingClientRect(), task)
     e.stopPropagation()
-  }, [initDrag])
+  }, [initDrag, isMobile])
 
   const onTouchMove = useCallback((e) => {
+    if (isMobile && touchRef.current) {
+      const dx = e.touches[0].clientX - touchRef.current.startX
+      const dy = e.touches[0].clientY - touchRef.current.startY
+      if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) touchRef.current.moved = true
+      return
+    }
     if (!dragRef.current) return
     const dxDays = Math.round((e.touches[0].clientX - dragRef.current.startClientX) / dragRef.current.pxPerDay)
     setDragState(current => current ? { ...current, dxDays } : current)
     e.preventDefault()
-  }, [])
+  }, [isMobile])
 
   const onTouchEnd = useCallback((e) => {
+    if (isMobile && touchRef.current) {
+      if (!touchRef.current.moved) onTaskClick?.(touchRef.current.taskId)
+      touchRef.current = null
+      return
+    }
     e.preventDefault()
     commitDrag(e.changedTouches[0]?.clientX ?? dragRef.current?.startClientX ?? 0)
-  }, [commitDrag])
+  }, [commitDrag, isMobile, onTaskClick])
 
   // ── mouse drag ───────────────────────────────────────────────────────────────
   const onMouseDown = useCallback((e, task) => {
@@ -357,20 +374,21 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           // ── Milestone: diamond marker ─────────────────────────────────────────
           if (isMilestone) {
             const sz = BAR_H
+            const isSelected = selectedId === task.id
             return (
               <div key={task.id}
                 onTouchStart={ev => onTouchStart(ev, task)}
                 onMouseDown={ev => onMouseDown(ev, task)}
-                onClick={() => onTaskClick?.(task.id)}
                 title={task.name}
+                aria-label={`Task: ${task.name}`}
                 style={{
                   position: 'absolute',
                   left: x - sz / 2, top: rowIdx * ROW_H + BAR_Y,
                   width: sz, height: sz,
                   background: fill,
                   transform: 'rotate(45deg)',
-                  cursor: 'pointer', zIndex: 1, touchAction: 'none',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                  cursor: 'pointer', zIndex: isSelected ? 3 : 1, touchAction: isMobile ? 'pan-x pan-y' : 'none',
+                  boxShadow: isSelected ? '0 0 0 3px var(--gx-surface), 0 0 0 6px var(--gx-accent)' : '0 1px 3px rgba(0,0,0,0.25)',
                 }}
               />
             )
@@ -379,6 +397,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
           const textCol = isLight(fill) ? '#1a1a1a' : '#fff'
           const progressW = w * ((task.progress ?? 0) / 100)
+          const isSelected = selectedId === task.id
 
           const isInlineEditing = inlineEditId === task.id
           return (
@@ -390,11 +409,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 setInlineEditId(task.id)
                 setInlineEditVal(task.name)
               }}
+              title={`${task.name}. ${task.start} to ${task.end}`}
+              aria-label={`Task: ${task.name}`}
               style={{
                 position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
                 borderRadius: 4, background: fill, cursor: isInlineEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
-                boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.25)' : '0 1px 2px rgba(0,0,0,0.12)',
-                zIndex: isInlineEditing ? 20 : isDragging ? 10 : 1, touchAction: 'none',
+                boxShadow: isDragging ? '0 4px 12px rgba(0,0,0,0.25)' : isSelected ? '0 0 0 3px var(--gx-surface), 0 0 0 6px var(--gx-accent)' : '0 1px 2px rgba(0,0,0,0.12)',
+                zIndex: isInlineEditing ? 20 : isDragging ? 10 : isSelected ? 3 : 1, touchAction: isMobile ? 'pan-x pan-y' : 'none',
                 display: 'flex', alignItems: 'center', overflow: 'hidden',
               }}
             >
@@ -465,9 +486,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   padding: '0 18px 0 12px',
                   borderBottom: '1px solid var(--gx-border)',
                   borderRight: '2px solid var(--gx-border)',
-                  background: i % 2 === 0 ? 'var(--gx-surface)' : 'var(--gx-bg-alt)',
+                  background: selectedId === task.id ? 'var(--gx-accent-dim)' : i % 2 === 0 ? 'var(--gx-surface)' : 'var(--gx-bg-alt)',
                   cursor: 'pointer',
                   fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)',
+                  boxShadow: selectedId === task.id ? 'inset 3px 0 0 var(--gx-accent)' : 'none',
                 }}
               >
                 {inlineEditId === task.id ? (
@@ -484,7 +506,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                     style={{ flex: 1, fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)', background: 'var(--gx-surface)', border: '1px solid var(--gx-accent)', borderRadius: 3, padding: '2px 4px', outline: 'none', fontFamily: 'inherit', minWidth: 0 }}
                   />
                 ) : (
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span title={task.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {task.start === task.end && <span style={{ marginRight: 4, fontSize: barFontSize, opacity: 0.7 }}>◆</span>}
                     {task.name}
                   </span>
@@ -513,7 +535,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
             onScroll={onChartScroll}
-            style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
+            style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
           >
             {chartBody(false)}
           </div>
@@ -530,7 +552,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
         ref={node => { scrollRef.current = node; if (scrollExportRef) scrollExportRef.current = node }}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0 }}
+        style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'auto', minHeight: 0, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
         {chartBody(true)}
       </div>

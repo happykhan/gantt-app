@@ -74,7 +74,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--gx-text)' }}>Edit task</h3>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: 'var(--gx-text-muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+            <button aria-label="Close task editor" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: 'var(--gx-text-muted)', cursor: 'pointer', width: 44, height: 44, borderRadius: 8, lineHeight: 1 }}>×</button>
           </div>
 
           {/* Name */}
@@ -131,7 +131,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
 
           {/* Progress */}
           <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>Progress — {progress}%</label>
+            <label style={labelStyle}>Progress: {progress}%</label>
             <input
               type="range"
               min={0} max={100} step={5}
@@ -176,7 +176,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
                       })}
                       style={{ accentColor: 'var(--gx-accent)', width: 18, height: 18, flexShrink: 0 }}
                     />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                    <span title={t.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
                   </label>
                 ))}
               </div>
@@ -192,7 +192,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
           {/* Actions */}
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={save} className="gx-btn gx-btn-primary" style={{ flex: 1, padding: '12px', fontSize: 15 }}>
-              Save
+              Save task
             </button>
             <button
               onClick={() => { onDelete(task.id); onClose() }}
