@@ -812,12 +812,13 @@ function GanttPage({ tasks, setTasks, chartTitle, setChartTitle, categoryColors,
               {
                 heading: 'Files',
                 rows: [
-                  ['Save', 'Download .json (tasks + colours)'],
-                  ['Load', 'Restore a saved .json project'],
+                  ['Autosave', 'Keep changes in this browser'],
+                  ['Project → Save', 'Download a portable .json project'],
+                  ['Project → Open', 'Restore a saved .json project'],
                   ['Import', 'Load tasks from CSV, Excel or JSON'],
                   ['Export → PNG', 'Raster image for Word / slides'],
-                  ['Export → SVG', 'Vector image for Inkscape'],
-                  ['Export → PDF', 'A4 PDF for print / sharing'],
+                  ['Export → SVG', 'Scalable image for documents'],
+                  ['Export → PDF', 'PDF for print and sharing'],
                 ],
               },
             ].map(({ heading, note, rows }) => (

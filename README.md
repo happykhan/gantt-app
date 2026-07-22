@@ -1,6 +1,6 @@
 # Gantt Builder
 
-A browser-based Gantt chart tool built for academic grant applications and project planning. No account, no server — everything runs locally.
+A browser-based Gantt chart tool built for academic grant applications and project planning. No account, no server: everything runs locally.
 
 **Live app:** https://gantt-app-wheat.vercel.app
 
@@ -8,17 +8,16 @@ A browser-based Gantt chart tool built for academic grant applications and proje
 
 ## Features
 
-- **Flexible input** — upload Excel (`.xlsx`/`.xls`) or CSV, paste directly from Google Sheets, or start from a built-in grant example
-- **Drag to edit** — drag bars to shift dates; drag edges to resize duration
-- **Inline editing** — edit task name, start/end, category, and % done from the side panel
-- **Work Package colours** — automatic colour coding by category; click any WP label in the legend to pick a custom colour
-- **Dependencies** — click a task bar, then toggle which tasks it depends on; dependency arrows render automatically
-- **View modes** — Week, Month, Quarter, Year
-- **Zoom** — scale the chart 50%–200% for small screens
-- **Export** — PNG (2× resolution) and SVG
-- **Save / Load** — save your project as JSON and reload it later
-- **Mobile friendly** — task list collapses to name-only rows; tap ▼ to expand dates per task
-- **Dark mode** — follows system preference via `prefers-color-scheme`
+- **Flexible input**: upload Excel (`.xlsx`/`.xls`), CSV or JSON, paste from Google Sheets, or start from the built-in example
+- **Drag to edit**: drag bars to shift dates and drag either edge to resize duration
+- **Focused editing**: edit a selected task in the task editor or use the desktop task table for quick changes
+- **Category colours**: automatic colour coding by category, with category and task-level overrides
+- **Dependencies**: select predecessor tasks and see dependency arrows on the chart
+- **Responsive views**: Week, Month, Quarter and Year scales, plus Fit to project and Reset zoom
+- **Export**: download PNG, SVG and PDF versions of the complete chart
+- **Local persistence**: changes autosave in the browser; project JSON files provide portable Save and Open round trips
+- **Mobile friendly**: compact task cards and a touch-friendly task editor at narrow widths
+- **Dark mode**: follows the system preference through `prefers-color-scheme`
 
 ---
 
@@ -43,18 +42,30 @@ Run the complete local quality gate with:
 npm run ci
 ```
 
+Run the production build through the browser regression suite with:
+
+```bash
+npx playwright install --with-deps chromium
+npm run test:e2e:local
+```
+
+The browser suite covers the critical workflow in desktop/mobile and light/dark projects. It also covers CSV, Excel and JSON imports; editing, dependencies, drag/resize, undo and persistence; project Save/Open; PNG, SVG and PDF downloads; and a 250-task stress fixture.
+
+The full preview, deployment and post-deployment procedure is in [docs/release-checklist.md](docs/release-checklist.md).
+
 Dependency decisions, audit mitigations and bundle-size budgets are recorded in [docs/dependency-baseline.md](docs/dependency-baseline.md).
 
 ---
 
 ## Deploying to Vercel
 
+Vercel builds pull requests as previews. Test the immutable preview URL before merge:
+
 ```bash
-npm i -g vercel
-vercel --prod
+E2E_BASE_URL=https://your-preview-url npm run test:e2e:preview
 ```
 
-The `vercel.json` rewrites all routes to `index.html` for client-side routing.
+Production deployment requires explicit approval. Follow the release checklist rather than deploying an unreviewed local checkout. The `vercel.json` rewrites all routes to `index.html` for client-side routing.
 
 ---
 
@@ -69,7 +80,7 @@ The parser looks for columns named (case-insensitive, flexible aliases):
 | Task name | Task, Task Name, Name, Activity, Item |
 | Start date | Start, Start Date, Begin, From |
 | End date | End, End Date, Finish, Due, Until |
-| Category / WP | Category, WP, Phase, Group, Section |
+| Category | Category, WP, Phase, Group, Section |
 | Progress | Progress, %, % Complete, Done |
 | Dependencies | Dependencies, Deps, Depends On, After |
 

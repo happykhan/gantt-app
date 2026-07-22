@@ -82,6 +82,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
             <label style={labelStyle}>Task name</label>
             <input
               type="text"
+              aria-label="Task name"
               value={name}
               onChange={e => setName(e.target.value)}
               style={inputStyle}
@@ -93,11 +94,11 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div>
               <label style={labelStyle}>Start</label>
-              <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inputStyle} />
+              <input aria-label="Start date" type="date" value={start} onChange={e => setStart(e.target.value)} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>End</label>
-              <input type="date" value={end} min={start} onChange={e => setEnd(e.target.value)} style={inputStyle} />
+              <input aria-label="End date" type="date" value={end} min={start} onChange={e => setEnd(e.target.value)} style={inputStyle} />
             </div>
           </div>
 
@@ -116,6 +117,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
               </label>
               <input
                 type="text"
+                aria-label="Category"
                 value={category}
                 list="bs-categories"
                 onChange={e => setCategory(e.target.value)}
@@ -134,6 +136,7 @@ export default function BottomSheet({ task, tasks = [], categories, categoryColo
             <label style={labelStyle}>Progress: {progress}%</label>
             <input
               type="range"
+              aria-label="Progress"
               min={0} max={100} step={5}
               value={progress}
               onChange={e => setProgress(Number(e.target.value))}
