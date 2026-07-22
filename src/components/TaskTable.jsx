@@ -1,16 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { DEFAULT_COLUMN_WIDTHS } from '../utils/storage'
 
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
-const DEFAULT_COL_WIDTHS = { name: 160, start: 82, end: 82, dur: 52, category: 110, progress: 52, deps: 130 }
 const MIN_COL_WIDTHS    = { name: 60,  start: 60, end: 60, dur: 36, category: 60,  progress: 36, deps: 50  }
-
-function loadColWidths() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('gantt-colWidths') || '{}')
-    return { ...DEFAULT_COL_WIDTHS, ...saved }
-  } catch { return { ...DEFAULT_COL_WIDTHS } }
-}
 
 function DepsModal({ task, tasks, onSave, onClose }) {
   const [deps, setDeps] = useState(() =>
@@ -75,6 +68,7 @@ function fmtDate(iso) {
 
 function DateCell({ value, min, onChange }) {
   const [draft, setDraft] = useState(null)
+  const cancelRef = useRef(false)
   if (draft !== null) {
     return (
       <input
@@ -86,9 +80,13 @@ function DateCell({ value, min, onChange }) {
         onBlur={() => {
           const nextValue = draft
           setDraft(null)
-          if (nextValue !== value) onChange(nextValue)
+          if (!cancelRef.current && nextValue !== value) onChange(nextValue)
+          cancelRef.current = false
         }}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur() }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { cancelRef.current = true; e.currentTarget.blur() }
+        }}
         style={{ width: '100%', padding: '2px 4px', fontSize: 12, border: 'none', background: 'transparent', color: 'var(--gx-text)', outline: 'none', fontFamily: 'inherit' }}
       />
     )
@@ -103,13 +101,15 @@ function DateCell({ value, min, onChange }) {
 
 function Cell({ value, onChange, type = 'text', min, style }) {
   const [draft, setDraft] = useState(null)
+  const cancelRef = useRef(false)
   const displayedValue = draft ?? value
   return (
     <input type={type} value={displayedValue}
       min={min}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
-        if (draft !== null && draft !== value) onChange(draft)
+        if (!cancelRef.current && draft !== null && draft !== value) onChange(draft)
+        cancelRef.current = false
         setDraft(null)
       }}
       style={{
@@ -118,6 +118,10 @@ function Cell({ value, onChange, type = 'text', min, style }) {
         outline: 'none', fontFamily: 'inherit', ...style,
       }}
       onFocus={e => { setDraft(value); e.target.select() }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') { cancelRef.current = true; e.currentTarget.blur() }
+      }}
     />
   )
 }
@@ -143,9 +147,9 @@ function ResizableHeader({ colKey, label, width, baseStyle, onResize, extra = {}
   )
 }
 
-export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240 }) {
+export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240, columnWidths = DEFAULT_COLUMN_WIDTHS, onColumnWidthsChange }) {
   const [openDepsId, setOpenDepsId] = useState(null)
-  const [colWidths, setColWidths] = useState(loadColWidths)
+  const colWidths = columnWidths
 
   function startColResize(key, e) {
     const isTouch = e.type === 'touchstart'
@@ -155,18 +159,14 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     function onMove(ev) {
       const x = ev.touches ? ev.touches[0].clientX : ev.clientX
       lastW = Math.max(MIN_COL_WIDTHS[key] ?? 40, startW + x - startX)
-      setColWidths(prev => ({ ...prev, [key]: lastW }))
+      onColumnWidthsChange?.({ ...columnWidths, [key]: lastW })
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      setColWidths(prev => {
-        const next = { ...prev, [key]: lastW }
-        try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch { /* Preferences are best-effort. */ }
-        return next
-      })
+      onColumnWidthsChange?.({ ...columnWidths, [key]: lastW })
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)

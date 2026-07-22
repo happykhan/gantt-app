@@ -15,8 +15,9 @@ A browser-based Gantt chart tool built for academic grant applications and proje
 - **Dependencies** — click a task bar, then toggle which tasks it depends on; dependency arrows render automatically
 - **View modes** — Week, Month, Quarter, Year
 - **Zoom** — scale the chart 50%–200% for small screens
+- **Consistent undo:** restores the exact project state after drag, resize, keyboard, table, modal, import, load and Clear actions
 - **Export** — PNG (2× resolution) and SVG
-- **Save / Load** — save your project as JSON and reload it later
+- **Autosave and Save / Load:** keeps a recoverable local copy, or saves the complete project as JSON for later use
 - **Mobile friendly** — task list collapses to name-only rows; tap ▼ to expand dates per task
 - **Dark mode** — follows system preference via `prefers-color-scheme`
 
@@ -98,7 +99,9 @@ Use **Save** to export your current project, and **Load** (or import the file fr
 }
 ```
 
-Version 1 preserves the complete project, including an empty task list, empty title and empty colour map. Older unversioned files with `chartTitle`, `tasks` and `categoryColors` are migrated when loaded. Invalid tasks, duplicate IDs, missing dependencies or invalid colours reject the entire file, so a failed load never partially changes the current project.
+Version 1 preserves the complete project, including an empty task list, empty title, category colour map and optional per-task colours. Older unversioned files with `chartTitle`, `tasks` and `categoryColors` are migrated when loaded. Invalid tasks, duplicate IDs, missing dependencies or invalid colours reject the entire file, so a failed load never partially changes the current project.
+
+Autosave keeps a last-known-good copy so a corrupt or interrupted browser-storage write can recover without blocking the app. View mode, layout, zoom, table visibility and size, chart typography, density, export scale and column widths are also restored on reload.
 
 ---
 

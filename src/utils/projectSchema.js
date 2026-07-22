@@ -112,6 +112,7 @@ export function validateProject(project) {
       progress: rawTask.progress,
       category: typeof rawTask.category === 'string' ? rawTask.category.trim() : '',
       dependencies: typeof rawTask.dependencies === 'string' ? rawTask.dependencies.trim() : '',
+      ...(rawTask.color == null || rawTask.color === '' ? {} : { color: rawTask.color }),
     }
 
     if (!task.id) {
@@ -135,6 +136,11 @@ export function validateProject(project) {
     }
     if (typeof rawTask.category !== 'string') errors.push(error(row, 'category', 'Category must be text.'))
     if (typeof rawTask.dependencies !== 'string') errors.push(error(row, 'dependencies', 'Dependencies must be a comma-separated list of task IDs.'))
+    if (rawTask.color != null && rawTask.color !== '' && !isValidColour(rawTask.color)) {
+      errors.push(error(row, 'color', 'Task colour must be a 3- or 6-digit hex colour.'))
+    } else if (task.color) {
+      task.color = task.color.toLowerCase()
+    }
 
     normalised.tasks.push(task)
   })

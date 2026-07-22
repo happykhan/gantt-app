@@ -62,17 +62,35 @@ function isLight(hex) {
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, labelWidth = LABEL_W, onLabelWidthChange, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
+  const inlineCancelRef = useRef(false)
+  const categoryCancelRef = useRef(false)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
-  const [labelWidth, setLabelWidth] = useState(() => {
-    try { return parseInt(localStorage.getItem('gantt-labelWidth'), 10) || LABEL_W } catch { return LABEL_W }
-  })
   const [inlineEditId, setInlineEditId] = useState(null)
   const [inlineEditVal, setInlineEditVal] = useState('')
+
+  function beginInlineEdit(task) {
+    inlineCancelRef.current = false
+    setInlineEditId(task.id)
+    setInlineEditVal(task.name)
+  }
+
+  function finishInlineEdit(task) {
+    if (!inlineCancelRef.current && inlineEditVal !== task.name) {
+      onTaskChange?.(task.id, { name: inlineEditVal })
+    }
+    inlineCancelRef.current = false
+    setInlineEditId(null)
+  }
+
+  function cancelInlineEdit() {
+    inlineCancelRef.current = true
+    setInlineEditId(null)
+  }
 
   const ROW_H = rowHeight
   const BAR_H = Math.max(16, Math.round(ROW_H * 0.577))
@@ -86,14 +104,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     function onMove(ev) {
       const x = ev.touches ? ev.touches[0].clientX : ev.clientX
       lastW = Math.max(60, Math.min(window.innerWidth * 0.6, startW + x - startX))
-      setLabelWidth(lastW)
+      onLabelWidthChange?.(lastW)
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      try { localStorage.setItem('gantt-labelWidth', lastW) } catch { /* Preferences are best-effort. */ }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -236,12 +253,19 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 autoFocus
                 defaultValue={cat}
                 style={{ fontSize: 12, padding: '1px 4px', border: '1px solid var(--gx-accent)', borderRadius: 3, width: 80, background: 'var(--gx-bg)', color: 'var(--gx-text)' }}
-                onBlur={e => { onRenameCategory?.(cat, e.target.value); setEditingCat(null) }}
-                onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingCat(null) }}
+                onBlur={e => {
+                  if (!categoryCancelRef.current) onRenameCategory?.(cat, e.target.value)
+                  categoryCancelRef.current = false
+                  setEditingCat(null)
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') { categoryCancelRef.current = true; setEditingCat(null) }
+                }}
               />
             ) : (
               <span
-                onClick={() => setEditingCat(cat)}
+                onClick={() => { categoryCancelRef.current = false; setEditingCat(cat) }}
                 title="Tap to rename"
                 style={{ fontSize: 12, color: 'var(--gx-text-muted)', cursor: 'text', borderBottom: '1px dashed var(--gx-border)' }}
               >{cat}</span>
@@ -359,6 +383,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
             const sz = BAR_H
             return (
               <div key={task.id}
+                data-testid={`gantt-bar-${task.id}`}
                 onTouchStart={ev => onTouchStart(ev, task)}
                 onMouseDown={ev => onMouseDown(ev, task)}
                 onClick={() => onTaskClick?.(task.id)}
@@ -383,12 +408,12 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           const isInlineEditing = inlineEditId === task.id
           return (
             <div key={task.id}
+              data-testid={`gantt-bar-${task.id}`}
               onTouchStart={ev => onTouchStart(ev, task)}
               onMouseDown={ev => isInlineEditing ? undefined : onMouseDown(ev, task)}
               onDoubleClick={ev => {
                 ev.stopPropagation()
-                setInlineEditId(task.id)
-                setInlineEditVal(task.name)
+                beginInlineEdit(task)
               }}
               style={{
                 position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
@@ -410,10 +435,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                   autoFocus
                   value={inlineEditVal}
                   onChange={e => setInlineEditVal(e.target.value)}
-                  onBlur={() => { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }}
+                  onBlur={() => finishInlineEdit(task)}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }
-                    if (e.key === 'Escape') { setInlineEditId(null) }
+                    if (e.key === 'Enter') e.currentTarget.blur()
+                    if (e.key === 'Escape') cancelInlineEdit()
                     e.stopPropagation()
                   }}
                   style={{ flex: 1, fontSize: barFontSize, fontWeight: 600, color: textCol, background: 'transparent', border: 'none', outline: '2px solid rgba(255,255,255,0.6)', borderRadius: 2, padding: '0 4px', fontFamily: chartFont || 'inherit', textAlign: 'center', minWidth: 0 }}
@@ -458,7 +483,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <div
                 key={task.id}
                 onClick={() => onTaskClick?.(task.id)}
-                onDoubleClick={() => { setInlineEditId(task.id); setInlineEditVal(task.name) }}
+                onDoubleClick={() => beginInlineEdit(task)}
                 style={{
                   height: ROW_H, flexShrink: 0,
                   display: 'flex', alignItems: 'center',
@@ -475,10 +500,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                     autoFocus
                     value={inlineEditVal}
                     onChange={e => setInlineEditVal(e.target.value)}
-                    onBlur={() => { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }}
+                    onBlur={() => finishInlineEdit(task)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') { onTaskChange?.(task.id, { name: inlineEditVal }); setInlineEditId(null) }
-                      if (e.key === 'Escape') setInlineEditId(null)
+                      if (e.key === 'Enter') e.currentTarget.blur()
+                      if (e.key === 'Escape') cancelInlineEdit()
                       e.stopPropagation()
                     }}
                     style={{ flex: 1, fontSize: barFontSize + 1, fontWeight: 500, color: 'var(--gx-text)', background: 'var(--gx-surface)', border: '1px solid var(--gx-accent)', borderRadius: 3, padding: '2px 4px', outline: 'none', fontFamily: 'inherit', minWidth: 0 }}
