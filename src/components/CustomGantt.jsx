@@ -377,6 +377,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
             const isSelected = selectedId === task.id
             return (
               <div key={task.id}
+                data-testid="gantt-task"
+                data-task-id={task.id}
+                data-start={task.start}
+                data-end={task.end}
                 onTouchStart={ev => onTouchStart(ev, task)}
                 onMouseDown={ev => onMouseDown(ev, task)}
                 title={task.name}
@@ -402,6 +406,10 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           const isInlineEditing = inlineEditId === task.id
           return (
             <div key={task.id}
+              data-testid="gantt-task"
+              data-task-id={task.id}
+              data-start={task.start}
+              data-end={task.end}
               onTouchStart={ev => onTouchStart(ev, task)}
               onMouseDown={ev => isInlineEditing ? undefined : onMouseDown(ev, task)}
               onDoubleClick={ev => {

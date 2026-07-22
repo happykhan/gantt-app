@@ -1,7 +1,7 @@
 {
   "name": "gantt-app",
   "private": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:local": "npm run build && playwright test",
+    "test:e2e:preview": "playwright test e2e/preview.spec.js --project=desktop-light",
     "test:watch": "vitest",
     "prepare": "git config core.hooksPath .githooks || true"
   },
@@ -31,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",

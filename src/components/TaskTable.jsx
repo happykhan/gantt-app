@@ -73,13 +73,14 @@ function fmtDate(iso) {
   return `${parseInt(d)} ${MONTHS[parseInt(m) - 1]} '${y.slice(2)}`
 }
 
-function DateCell({ value, min, onChange }) {
+function DateCell({ value, min, onChange, ariaLabel }) {
   const [draft, setDraft] = useState(null)
   if (draft !== null) {
     return (
       <input
         autoFocus
         type="date"
+        aria-label={ariaLabel}
         value={draft}
         min={min}
         onChange={e => setDraft(e.target.value)}
@@ -101,11 +102,11 @@ function DateCell({ value, min, onChange }) {
   )
 }
 
-function Cell({ value, onChange, type = 'text', min, style }) {
+function Cell({ value, onChange, type = 'text', min, style, ariaLabel }) {
   const [draft, setDraft] = useState(null)
   const displayedValue = draft ?? value
   return (
-    <input type={type} value={displayedValue}
+    <input type={type} value={displayedValue} aria-label={ariaLabel}
       min={min}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
@@ -233,7 +234,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
             const catIdx = categories.indexOf(task.category)
             const dot = DEFAULT_COLORS[Math.max(0, catIdx) % DEFAULT_COLORS.length]
             return (
-              <tr key={task.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }}>
+              <tr key={task.id} data-testid="task-row" data-task-id={task.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--gx-bg-alt)' }}>
                 <td style={{ ...td, padding: '2px 8px', color: 'var(--gx-text-muted)', fontSize: 11, width: 32 }}>{idx + 1}</td>
                 <td style={{ ...td, width: colWidths.name }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -244,14 +245,14 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                         onContextMenu={e => { e.preventDefault(); onUpdate(task.id, { color: undefined }) }}
                         style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }} />
                     </label>
-                    <Cell value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
+                    <Cell ariaLabel={`Task name for ${task.name}`} value={task.name} onChange={v => onUpdate(task.id, { name: v })} />
                   </div>
                 </td>
                 <td style={{ ...td, width: colWidths.start }}>
-                  <DateCell value={task.start} onChange={v => onUpdate(task.id, { start: v })} />
+                  <DateCell ariaLabel={`Start date for ${task.name}`} value={task.start} onChange={v => onUpdate(task.id, { start: v })} />
                 </td>
                 <td style={{ ...td, width: colWidths.end }}>
-                  <DateCell value={task.end} min={task.start} onChange={v => onUpdate(task.id, { end: v })} />
+                  <DateCell ariaLabel={`End date for ${task.name}`} value={task.end} min={task.start} onChange={v => onUpdate(task.id, { end: v })} />
                 </td>
                 <td style={{ ...td, width: colWidths.dur, color: 'var(--gx-text-muted)', padding: '2px 8px', whiteSpace: 'nowrap' }}>
                   {duration(task.start, task.end)}
@@ -259,17 +260,20 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
                 <td style={{ ...td, width: colWidths.category }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: dot, flexShrink: 0 }} />
-                    <Cell value={task.category || ''} onChange={v => onUpdate(task.id, { category: v })} />
+                    <Cell ariaLabel={`Category for ${task.name}`} value={task.category || ''} onChange={v => onUpdate(task.id, { category: v })} />
                   </div>
                 </td>
                 <td style={{ ...td, width: colWidths.progress }}>
-                  <Cell value={task.progress ?? 0} type="number" min="0"
+                  <Cell ariaLabel={`Progress for ${task.name}`} value={task.progress ?? 0} type="number" min="0"
                     onChange={v => onUpdate(task.id, { progress: Math.min(100, Math.max(0, Number(v))) })}
                     style={{ textAlign: 'right' }} />
                 </td>
                 <td style={{ ...td, width: colWidths.deps }}>
                   <div
                     onClick={() => setOpenDepsId(openDepsId === task.id ? null : task.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Dependencies for ${task.name}`}
                     title="Click to set which tasks must finish before this one starts"
                     style={{ cursor: 'pointer', display: 'flex', flexWrap: 'wrap', gap: 3, minHeight: 24, alignItems: 'center', padding: '2px 4px' }}
                   >
