@@ -11,7 +11,6 @@ import TaskEditorDialog from './components/TaskEditorDialog'
 import { coloursForCategories } from './config/palettes'
 import { useChartExport } from './hooks/useChartExport'
 import { useFeedback } from './hooks/useFeedback'
-import { useHistory } from './hooks/useHistory'
 import { useProjectState } from './hooks/useProjectState'
 import { useStoredPreference } from './hooks/useStoredPreference'
 import { useViewport } from './hooks/useViewport'
@@ -47,7 +46,7 @@ function AppIcon() {
   )
 }
 
-function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryColors, autosaveStatus }) {
+function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryColors, undo, canUndo, autosaveStatus }) {
   const { tasks, chartTitle, categoryColors } = project
   const { width: viewportWidth, isMobile } = useViewport()
   const [viewMode, setViewMode] = useStoredPreference('gantt-viewMode', chooseResponsiveViewMode(tasks, viewportWidth))
@@ -66,7 +65,6 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   const categories = useMemo(() => getCategories(tasks), [tasks])
   const selectedTask = tasks.find(task => task.id === selectedId)
   const editingTask = tasks.find(task => task.id === editingTaskId)
-  const { checkpoint, undo, canUndo } = useHistory(project, setProject)
   const { feedback, notify } = useFeedback()
   const { exportPng, exportSvg, exportPdf } = useChartExport({ exportRef, chartTitle, chartFont, exportScale, notify })
 
@@ -75,16 +73,14 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   }, [setTasks])
 
   const handleDelete = useCallback(taskId => {
-    checkpoint()
     setTasks(current => deleteTask(current, taskId))
     setSelectedId(current => current === taskId ? null : current)
     setEditingTaskId(current => current === taskId ? null : current)
-  }, [checkpoint, setTasks])
+  }, [setTasks])
 
   const handleMove = useCallback((taskId, direction) => {
-    checkpoint()
     setTasks(current => moveTask(current, taskId, direction))
-  }, [checkpoint, setTasks])
+  }, [setTasks])
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -115,7 +111,6 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   }, [handleDelete, selectedId, setTasks, undo])
 
   function handleAdd() {
-    checkpoint()
     const task = createTask(tasks)
     setTasks(current => [...current, task])
     setSelectedId(task.id)
@@ -123,7 +118,6 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   }
 
   function handleImport({ kind, project: importedProject }) {
-    checkpoint()
     const nextTasks = withTaskIds(importedProject.tasks)
     setProject(current => ({
       tasks: nextTasks,
@@ -136,14 +130,12 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   }
 
   function handleExample() {
-    checkpoint()
     const sample = withTaskIds(generateSampleData())
     setTasks(sample)
     setViewMode(chooseResponsiveViewMode(sample, viewportWidth))
   }
 
   function handleClear() {
-    checkpoint()
     setProject({ ...EMPTY_PROJECT, tasks: [], categoryColors: {} })
     setSelectedId(null)
     setEditingTaskId(null)
@@ -154,7 +146,6 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
     if (!file) return
     try {
       const loaded = await readProjectFile(file)
-      checkpoint()
       setProject(loaded)
       setViewMode(chooseResponsiveViewMode(loaded.tasks, viewportWidth))
       notify(`Project loaded with ${loaded.tasks.length} tasks`)
@@ -164,8 +155,11 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   }
 
   function handleRenameCategory(oldCategory, newCategory) {
-    setTasks(current => renameCategory(current, oldCategory, newCategory))
-    setCategoryColors(current => renameCategoryColour(current, oldCategory, newCategory))
+    setProject(current => ({
+      ...current,
+      tasks: renameCategory(current.tasks, oldCategory, newCategory),
+      categoryColors: renameCategoryColour(current.categoryColors, oldCategory, newCategory),
+    }))
   }
 
   function fitProject() {

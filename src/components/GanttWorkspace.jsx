@@ -36,6 +36,7 @@ export default function GanttWorkspace({
   onEdit,
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
   const [tableHeight, setTableHeight] = useStoredPreference('gantt-tableHeight', 240, value => parseInt(value, 10) || 240)
 
   function startTableResize(event) {
@@ -64,11 +65,21 @@ export default function GanttWorkspace({
       <main className="chart-workspace">
         <div className="chart-heading">
           {editingTitle ? (
-            <input autoFocus value={chartTitle} onChange={event => onChartTitle(event.target.value)} onBlur={() => setEditingTitle(false)} onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === 'Escape') setEditingTitle(false)
-            }} aria-label="Project title" placeholder="Add project title" className="chart-title-input" />
+            <input autoFocus value={titleDraft} onChange={event => setTitleDraft(event.target.value)}
+              onBlur={() => {
+                if (titleDraft !== chartTitle) onChartTitle(titleDraft)
+                setEditingTitle(false)
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+                if (event.key === 'Escape') {
+                  setTitleDraft(chartTitle)
+                  setEditingTitle(false)
+                }
+              }}
+              aria-label="Project title" placeholder="Add project title" className="chart-title-input" />
           ) : (
-            <button onClick={() => setEditingTitle(true)} title="Edit project title"
+            <button onClick={() => { setTitleDraft(chartTitle); setEditingTitle(true) }} title="Edit project title"
               aria-label={chartTitle ? `Edit project title: ${chartTitle}` : 'Add project title'}
               className={`chart-title-button${chartTitle ? '' : ' is-placeholder'}`}>
               {chartTitle || 'Add project title'}

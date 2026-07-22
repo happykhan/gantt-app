@@ -10,6 +10,7 @@ A browser-based Gantt chart tool built for academic grant applications and proje
 
 - **Flexible input**: upload Excel (`.xlsx`/`.xls`), CSV or JSON, paste from Google Sheets, or start from the built-in example
 - **Drag to edit**: drag bars to shift dates and drag either edge to resize duration
+- **Consistent undo**: restore the complete project after chart, table, keyboard, import, load, colour and clear actions
 - **Focused editing**: edit a selected task in the task editor or use the desktop task table for quick changes
 - **Category colours**: automatic colour coding by category, with category and task-level overrides
 - **Dependencies**: select predecessor tasks and see dependency arrows on the chart

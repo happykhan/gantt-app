@@ -10,6 +10,7 @@ const task = {
   category: 'WP1',
   dependencies: '',
   progress: 25,
+  color: '#6366F1',
 }
 
 describe('project schema', () => {
@@ -43,7 +44,7 @@ describe('project schema', () => {
 
     expect(result.errors).toEqual([])
     expect(result.project.title).toBe('Grant plan')
-    expect(result.project.tasks).toEqual([task])
+    expect(result.project.tasks).toEqual([{ ...task, color: '#6366f1' }])
     expect(result.project.categoryColors).toEqual({ WP1: '#0d9488' })
   })
 
@@ -73,6 +74,19 @@ describe('project schema', () => {
       expect.objectContaining({ row: 2, field: 'id' }),
       expect.objectContaining({ row: 2, field: 'progress' }),
       expect.objectContaining({ row: 2, field: 'dependencies' }),
+    ]))
+  })
+
+  it('rejects invalid task colours', () => {
+    const result = parseProjectObject({
+      schemaVersion: 1,
+      title: '',
+      categoryColors: {},
+      tasks: [{ ...task, color: 'blue' }],
+    })
+
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, field: 'color' }),
     ]))
   })
 
