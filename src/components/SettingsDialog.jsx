@@ -1,10 +1,9 @@
 import { PALETTES } from '../config/palettes'
+import Modal from './Modal'
 
 export default function SettingsDialog({ density, onDensity, chartFont, onChartFont, fontSize, onFontSize, exportScale, onExportScale, onPalette, onClose }) {
   return (
-    <div className="dialog-layer" role="presentation">
-      <div className="dialog-backdrop" onClick={onClose} />
-      <section className="app-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <Modal titleId="settings-title" onClose={onClose} backdropZIndex={130} dialogZIndex={131} className="app-dialog settings-dialog">
         <header className="dialog-header">
           <h3 id="settings-title">Display settings</h3>
           <button onClick={onClose} className="dialog-close" aria-label="Close settings">×</button>
@@ -70,7 +69,6 @@ export default function SettingsDialog({ density, onDensity, chartFont, onChartF
         </div>
 
         <button onClick={onClose} className="gx-btn gx-btn-secondary dialog-done">Done</button>
-      </section>
-    </div>
+    </Modal>
   )
 }

@@ -19,6 +19,7 @@ export default function Modal({
   style,
   backdropZIndex = 40,
   dialogZIndex = 50,
+  role = 'dialog',
 }) {
   const dialogRef = useRef(null)
   const closeRef = useRef(onClose)
@@ -88,7 +89,7 @@ export default function Modal({
       />
       <div
         ref={dialogRef}
-        role="dialog"
+        role={role}
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}

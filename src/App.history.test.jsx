@@ -28,7 +28,7 @@ function undo() {
 }
 
 function selectTask(id = 'task-1') {
-  const bar = screen.getByTestId(`gantt-bar-${id}`)
+  const bar = document.querySelector(`[data-testid="gantt-task"][data-task-id="${id}"]`)
   bar.getBoundingClientRect = () => ({ left: 0, width: 100 })
   fireEvent.mouseDown(bar, { button: 0, clientX: 50 })
   fireEvent.mouseUp(window, { clientX: 50 })
@@ -45,8 +45,8 @@ describe('App editor transactions', () => {
   it('cancels title, table and inline drafts consistently with Escape', async () => {
     render(<App />)
 
-    fireEvent.click(screen.getByText('Original plan'))
-    const title = screen.getByPlaceholderText('Enter chart title…')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project title: Original plan' }))
+    const title = screen.getByRole('textbox', { name: 'Project title' })
     fireEvent.change(title, { target: { value: 'Cancelled title' } })
     fireEvent.keyDown(title, { key: 'Escape' })
 
@@ -55,8 +55,9 @@ describe('App editor transactions', () => {
     fireEvent.change(taskName, { target: { value: 'Cancelled table edit' } })
     fireEvent.keyDown(taskName, { key: 'Escape' })
 
-    fireEvent.doubleClick(screen.getByTestId('gantt-bar-task-1'))
-    const inlineInput = screen.getByTestId('gantt-bar-task-1').querySelector('input')
+    const firstBar = document.querySelector('[data-testid="gantt-task"][data-task-id="task-1"]')
+    fireEvent.doubleClick(firstBar)
+    const inlineInput = firstBar.querySelector('input')
     fireEvent.change(inlineInput, { target: { value: 'Cancelled inline edit' } })
     fireEvent.keyDown(inlineInput, { key: 'Escape' })
 
@@ -67,8 +68,8 @@ describe('App editor transactions', () => {
   it('undoes title, table, dependency and category colour actions exactly', async () => {
     render(<App />)
 
-    fireEvent.click(screen.getByText('Original plan'))
-    const title = screen.getByPlaceholderText('Enter chart title…')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project title: Original plan' }))
+    const title = screen.getByRole('textbox', { name: 'Project title' })
     fireEvent.change(title, { target: { value: 'Changed title' } })
     fireEvent.blur(title)
     await waitFor(() => expect(saved().title).toBe('Changed title'))
@@ -91,7 +92,7 @@ describe('App editor transactions', () => {
     undo()
     await waitFor(() => expect(saved().tasks[0].dependencies).toBe(''))
 
-    const categoryLabel = screen.getAllByTitle('Tap to rename')[0]
+    const categoryLabel = screen.getByRole('button', { name: 'WP1' })
     fireEvent.click(categoryLabel)
     const categoryName = document.activeElement
     fireEvent.change(categoryName, { target: { value: 'Research' } })
@@ -120,7 +121,7 @@ describe('App editor transactions', () => {
     render(<App />)
     const originalTasks = initialProject.tasks
 
-    const bar = screen.getByTestId('gantt-bar-task-1')
+    const bar = document.querySelector('[data-testid="gantt-task"][data-task-id="task-1"]')
     bar.getBoundingClientRect = () => ({ left: 0, width: 100 })
     fireEvent.mouseDown(bar, { button: 0, clientX: 50 })
     fireEvent.mouseUp(window, { clientX: 90 })
@@ -128,7 +129,7 @@ describe('App editor transactions', () => {
     undo()
     await waitFor(() => expect(saved().tasks).toEqual(originalTasks))
 
-    const resizeBar = screen.getByTestId('gantt-bar-task-1')
+    const resizeBar = document.querySelector('[data-testid="gantt-task"][data-task-id="task-1"]')
     resizeBar.getBoundingClientRect = () => ({ left: 0, width: 100 })
     fireEvent.mouseDown(resizeBar, { button: 0, clientX: 5 })
     fireEvent.mouseUp(window, { clientX: 25 })
@@ -139,8 +140,9 @@ describe('App editor transactions', () => {
     undo()
     await waitFor(() => expect(saved().tasks).toEqual(originalTasks))
 
-    fireEvent.doubleClick(screen.getByTestId('gantt-bar-task-1'))
-    const inlineInput = screen.getByTestId('gantt-bar-task-1').querySelector('input')
+    const inlineBar = document.querySelector('[data-testid="gantt-task"][data-task-id="task-1"]')
+    fireEvent.doubleClick(inlineBar)
+    const inlineInput = inlineBar.querySelector('input')
     fireEvent.change(inlineInput, { target: { value: 'Inline edit' } })
     fireEvent.blur(inlineInput)
     await waitFor(() => expect(saved().tasks[0].name).toBe('Inline edit'))
@@ -154,14 +156,13 @@ describe('App editor transactions', () => {
     fireEvent.change(within(editor).getByRole('slider'), { target: { value: '60' } })
     fireEvent.change(editor.querySelector('input[type="color"]'), { target: { value: '#abcdef' } })
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Analysis' }))
-    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save task' }))
     await waitFor(() => expect(saved().tasks[0]).toMatchObject({
       name: 'Modal edit', start: '2026-01-05', progress: 60, dependencies: 'task-2',
     }))
     expect(saved().categoryColors.WP1).toBe('#abcdef')
     undo()
     await waitFor(() => expect(saved().tasks).toEqual(originalTasks))
-    expect(screen.getByRole('heading', { name: 'Edit task' })).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     await waitFor(() => expect(saved().tasks[0].start).toBe('2026-01-02'))
@@ -188,6 +189,7 @@ describe('App editor transactions', () => {
     undo()
     await waitFor(() => expect(saved()).toMatchObject(initialProject))
 
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
     const projectInput = container.querySelector('input[type="file"][accept=".json"]')
     const replacement = {
       ...initialProject,
@@ -199,17 +201,19 @@ describe('App editor transactions', () => {
       target: { files: [new File([JSON.stringify(replacement)], 'project.json', { type: 'application/json' })] },
     })
     await waitFor(() => expect(saved().title).toBe('Loaded project'))
+    fireEvent.keyDown(document, { key: 'Escape' })
     undo()
     await waitFor(() => expect(saved()).toMatchObject(initialProject))
 
     selectTask()
-    fireEvent.click(screen.getByTitle('Remove all tasks and reset the chart'))
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear project' }))
     expect(screen.getByText(/You can undo this action/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     await waitFor(() => expect(saved()).toMatchObject({ tasks: [], title: '', categoryColors: {} }))
     undo()
     await waitFor(() => expect(saved()).toMatchObject(initialProject))
-    expect(screen.getByRole('heading', { name: 'Edit task' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Study design')).toBeInTheDocument()
   })
 
   it('restores Month and every consolidated display setting on mobile reload', () => {
@@ -222,12 +226,14 @@ describe('App editor transactions', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 500 })
 
     const first = render(<App />)
-    expect(screen.getByTitle('Month view')).toHaveClass('gx-btn-primary')
-    expect(screen.getByTitle('Current zoom level')).toHaveTextContent('150%')
+    fireEvent.click(screen.getByRole('button', { name: 'View' }))
+    expect(screen.getByRole('menuitem', { name: 'Month' })).toHaveClass('is-selected')
+    expect(screen.getByRole('menuitem', { name: /Reset zoom/ })).toHaveTextContent('150%')
     first.unmount()
 
     render(<App />)
-    expect(screen.getByTitle('Month view')).toHaveClass('gx-btn-primary')
-    expect(screen.getByTitle('Current zoom level')).toHaveTextContent('150%')
+    fireEvent.click(screen.getByRole('button', { name: 'View' }))
+    expect(screen.getByRole('menuitem', { name: 'Month' })).toHaveClass('is-selected')
+    expect(screen.getByRole('menuitem', { name: /Reset zoom/ })).toHaveTextContent('150%')
   })
 })

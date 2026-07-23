@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Modal from './Modal'
 
 const CATEGORY_COLOURS = ['#6366f1', '#0d9488', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#84cc16']
 
@@ -13,19 +14,25 @@ function useDesktopEditor() {
   return isDesktop
 }
 
-export default function TaskEditorDialog({ task, tasks = [], categories, categoryColors = {}, onColorChange, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
+export default function TaskEditorDialog({ task, tasks = [], categories, categoryColors = {}, onUpdate, onDelete, onClose, onMoveUp, onMoveDown }) {
   const [name, setName] = useState(task?.name || '')
   const [start, setStart] = useState(task?.start || '')
   const [end, setEnd] = useState(task?.end || '')
   const [category, setCategory] = useState(task?.category || '')
   const [progress, setProgress] = useState(task?.progress ?? 0)
   const [taskColour, setTaskColour] = useState(task?.color || '')
+  const [categoryColourDraft, setCategoryColourDraft] = useState(() => {
+    const categoryIndex = categories.indexOf(task?.category)
+    return (task?.category && categoryColors[task.category]) || (categoryIndex >= 0 ? CATEGORY_COLOURS[categoryIndex % CATEGORY_COLOURS.length] : '#94a3b8')
+  })
   const [dependencies, setDependencies] = useState(() => new Set(task?.dependencies ? task.dependencies.split(',').map(value => value.trim()).filter(Boolean) : []))
   const isDesktop = useDesktopEditor()
 
   if (!task) return null
   const categoryIndex = categories.indexOf(category)
-  const categoryColour = (category && categoryColors[category]) || (categoryIndex >= 0 ? CATEGORY_COLOURS[categoryIndex % CATEGORY_COLOURS.length] : '#94a3b8')
+  const categoryColour = category === task.category
+    ? categoryColourDraft
+    : (category && categoryColors[category]) || (categoryIndex >= 0 ? CATEGORY_COLOURS[categoryIndex % CATEGORY_COLOURS.length] : '#94a3b8')
   const otherTasks = tasks.filter(candidate => candidate.id !== task.id)
 
   function save() {
@@ -37,14 +44,18 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
       progress,
       dependencies: [...dependencies].join(', '),
       color: taskColour || undefined,
-    })
+    }, category ? { category, colour: categoryColour } : null)
     if (accepted !== false) onClose()
   }
 
   return (
-    <div className="dialog-layer task-editor-layer">
-      <div className="dialog-backdrop" onClick={onClose} />
-      <section className={`task-editor${isDesktop ? ' is-desktop' : ''}`} role="dialog" aria-modal="true" aria-labelledby="task-editor-title">
+    <Modal
+      titleId="task-editor-title"
+      onClose={onClose}
+      backdropZIndex={150}
+      dialogZIndex={151}
+      className={`task-editor${isDesktop ? ' is-desktop' : ''}`}
+    >
         {!isDesktop && <div className="task-editor-drag-handle"><span /></div>}
         <div className="task-editor-content">
           <header className="dialog-header">
@@ -52,7 +63,7 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
             <button aria-label="Close task editor" onClick={onClose} className="dialog-close">×</button>
           </header>
 
-          <label className="editor-field"><span>Task name</span><input type="text" aria-label="Task name" value={name} onChange={event => setName(event.target.value)} placeholder="Enter task name" /></label>
+          <label className="editor-field"><span>Task name</span><input data-dialog-initial-focus type="text" aria-label="Task name" value={name} onChange={event => setName(event.target.value)} placeholder="Enter task name" /></label>
           <div className="editor-date-grid">
             <label className="editor-field"><span>Start</span><input aria-label="Start date" type="date" value={start} onChange={event => setStart(event.target.value)} /></label>
             <label className="editor-field"><span>End</span><input aria-label="End date" type="date" value={end} min={start} onChange={event => setEnd(event.target.value)} /></label>
@@ -63,7 +74,7 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
             <div className="category-input">
               <label className="colour-picker" title="Change category colour">
                 <i style={{ backgroundColor: categoryColour }} />
-                <input type="color" value={categoryColour} onChange={event => onColorChange?.(category, event.target.value)} />
+                <input type="color" value={categoryColour} onChange={event => setCategoryColourDraft(event.target.value)} />
               </label>
               <input type="text" aria-label="Category" value={category} list="editor-categories" onChange={event => setCategory(event.target.value)} placeholder="WP1, WP2…" />
               <datalist id="editor-categories">{categories.map(value => <option key={value} value={value} />)}</datalist>
@@ -111,7 +122,6 @@ export default function TaskEditorDialog({ task, tasks = [], categories, categor
             <button onClick={() => { onDelete(task.id); onClose() }} className="editor-delete">Delete</button>
           </div>
         </div>
-      </section>
-    </div>
+    </Modal>
   )
 }

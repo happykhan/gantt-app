@@ -47,7 +47,7 @@ describe('ImportModal', () => {
   it('previews a JSON project with its title and colours before importing', async () => {
     const onLoad = vi.fn()
     const { container } = render(<ImportModal onLoad={onLoad} onClose={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Upload file' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Upload file' }))
     const input = container.querySelector('input[type="file"]')
     const file = new File([JSON.stringify({
       schemaVersion: 1,

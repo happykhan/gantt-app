@@ -12,7 +12,6 @@ import { coloursForCategories } from './config/palettes'
 import { useChartExport } from './hooks/useChartExport'
 import { useFeedback } from './hooks/useFeedback'
 import { useProjectState } from './hooks/useProjectState'
-import { useStoredPreference } from './hooks/useStoredPreference'
 import { useViewport } from './hooks/useViewport'
 import {
   EMPTY_PROJECT,
@@ -28,6 +27,7 @@ import {
 } from './model/project'
 import { downloadProject, readProjectFile } from './services/projectPersistence'
 import { generateSampleData } from './utils/parseInput'
+import { loadDisplaySettings, saveDisplaySettings } from './utils/storage'
 import { chooseResponsiveViewMode, clampZoom } from './utils/viewDefaults'
 import { moveTaskAfterPredecessors, validateDependencyGraph } from './utils/dependencyGraph'
 
@@ -50,14 +50,34 @@ function AppIcon() {
 function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryColors, undo, canUndo, autosaveStatus }) {
   const { tasks, chartTitle, categoryColors } = project
   const { width: viewportWidth, isMobile } = useViewport()
-  const [viewMode, setViewMode] = useStoredPreference('gantt-viewMode', chooseResponsiveViewMode(tasks, viewportWidth))
-  const [labelMode, setLabelMode] = useStoredPreference('gantt-labelMode', 'inline')
-  const [displayDensity, setDisplayDensity] = useStoredPreference('gantt-density', 'normal')
-  const [zoom, setZoom] = useStoredPreference('gantt-zoom', 1, value => parseFloat(value) || 1)
-  const [chartFont, setChartFont] = useStoredPreference('gantt-font', 'inherit')
-  const [chartFontSize, setChartFontSize] = useStoredPreference('gantt-fontsize', 11, value => parseInt(value, 10) || 11)
-  const [exportScale, setExportScale] = useStoredPreference('gantt-exportScale', 2, value => parseInt(value, 10) || 2)
-  const [showTable, setShowTable] = useState(() => window.innerWidth >= 900)
+  const [displaySettings, setDisplaySettings] = useState(() => loadDisplaySettings(localStorage, window.innerWidth))
+  const {
+    viewMode,
+    labelMode,
+    displayDensity,
+    zoom,
+    chartFont,
+    chartFontSize,
+    exportScale,
+    showTable,
+    tableHeight,
+    labelWidth,
+    columnWidths,
+  } = displaySettings
+  const updateDisplaySetting = useCallback((key, update) => {
+    setDisplaySettings(current => ({
+      ...current,
+      [key]: typeof update === 'function' ? update(current[key]) : update,
+    }))
+  }, [])
+  const setViewMode = useCallback(update => updateDisplaySetting('viewMode', update), [updateDisplaySetting])
+  const setLabelMode = useCallback(update => updateDisplaySetting('labelMode', update), [updateDisplaySetting])
+  const setDisplayDensity = useCallback(update => updateDisplaySetting('displayDensity', update), [updateDisplaySetting])
+  const setZoom = useCallback(update => updateDisplaySetting('zoom', update), [updateDisplaySetting])
+  const setChartFont = useCallback(update => updateDisplaySetting('chartFont', update), [updateDisplaySetting])
+  const setChartFontSize = useCallback(update => updateDisplaySetting('chartFontSize', update), [updateDisplaySetting])
+  const setExportScale = useCallback(update => updateDisplaySetting('exportScale', update), [updateDisplaySetting])
+  const setShowTable = useCallback(update => updateDisplaySetting('showTable', update), [updateDisplaySetting])
   const [selectedId, setSelectedId] = useState(null)
   const [editingTaskId, setEditingTaskId] = useState(null)
   const [activeDialog, setActiveDialog] = useState(null)
@@ -81,16 +101,26 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
     notify,
   })
 
-  const handleTaskChange = useCallback((taskId, changes) => {
+  useEffect(() => {
+    saveDisplaySettings(localStorage, displaySettings)
+  }, [displaySettings])
+
+  const handleTaskChange = useCallback((taskId, changes, categoryColour) => {
     const nextTasks = updateTask(tasks, taskId, changes)
     const validation = validateDependencyGraph(nextTasks)
     if (validation.errors.length) {
       notify(`Change rejected. ${validation.errors[0].message}`, 'error')
       return false
     }
-    setTasks(nextTasks)
+    setProject(current => ({
+      ...current,
+      tasks: updateTask(current.tasks, taskId, changes),
+      categoryColors: categoryColour?.category
+        ? { ...current.categoryColors, [categoryColour.category]: categoryColour.colour }
+        : current.categoryColors,
+    }))
     return true
-  }, [notify, setTasks, tasks])
+  }, [notify, setProject, tasks])
 
   const handleDelete = useCallback(taskId => {
     setTasks(current => deleteTask(current, taskId))
@@ -104,7 +134,7 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (event.target.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         undo()
         event.preventDefault()
@@ -254,6 +284,12 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
         barFontSize={chartFontSize}
         chartFont={chartFont}
         categoryColors={categoryColors}
+        tableHeight={tableHeight}
+        onTableHeight={value => updateDisplaySetting('tableHeight', value)}
+        labelWidth={labelWidth}
+        onLabelWidth={value => updateDisplaySetting('labelWidth', value)}
+        columnWidths={columnWidths}
+        onColumnWidths={value => updateDisplaySetting('columnWidths', value)}
         exportRef={exportRef}
         scrollRef={scrollRef}
         onCreate={handleAdd}
@@ -272,7 +308,7 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
       />
 
       {(feedback || autosaveStatus === 'saving') && (
-        <div className={`workflow-feedback ${feedback?.tone || 'progress'}`} role="status" aria-live="polite">
+        <div className={`workflow-feedback ${feedback?.tone || 'progress'}`} role={feedback?.tone === 'error' ? 'alert' : 'status'} aria-live={feedback?.tone === 'error' ? 'assertive' : 'polite'}>
           <span className="feedback-dot" />{feedback?.message || 'Saving changes…'}
         </div>
       )}
@@ -299,7 +335,6 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
           tasks={tasks}
           categories={categories}
           categoryColors={categoryColors}
-          onColorChange={(category, colour) => setCategoryColors(current => ({ ...current, [category]: colour }))}
           onUpdate={handleTaskChange}
           onDelete={handleDelete}
           onClose={() => setEditingTaskId(null)}

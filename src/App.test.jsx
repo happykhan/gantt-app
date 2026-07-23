@@ -76,6 +76,7 @@ describe('App project workflow', () => {
 
   it('does not partially replace the current project when a loaded file is invalid', async () => {
     const { container } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
     const input = container.querySelector('input[type="file"][accept=".json"]')
     const invalidProject = new File([JSON.stringify({
       schemaVersion: 1,
@@ -86,13 +87,14 @@ describe('App project workflow', () => {
 
     fireEvent.change(input, { target: { files: [invalidProject] } })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Project was not loaded')
+    expect(await screen.findByRole('alert')).toHaveTextContent('That project file could not be loaded')
     expect(screen.getByDisplayValue('Study design')).toBeInTheDocument()
     expect(screen.getByText('Grant plan')).toBeInTheDocument()
   })
 
   it('loads empty tasks, title and colours as a complete project replacement', async () => {
     const { container } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
     const input = container.querySelector('input[type="file"][accept=".json"]')
     const emptyProject = new File([JSON.stringify({
       schemaVersion: 1,
@@ -104,7 +106,7 @@ describe('App project workflow', () => {
     fireEvent.change(input, { target: { files: [emptyProject] } })
 
     expect(await screen.findByText('Build your Gantt chart')).toBeInTheDocument()
-    expect(screen.getByText('Tap to add chart title…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add project title' })).toBeInTheDocument()
     await waitFor(() => {
       const saved = JSON.parse(localStorage.getItem('gantt-app-v1'))
       expect(saved.tasks).toEqual([])

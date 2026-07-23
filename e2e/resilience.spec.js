@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { expectTheme, largeProject, openProject } from './fixtures.js'
 
-test('renders 250 tasks, many categories, cycles, long names and long spans', async ({ page }, testInfo) => {
+test('renders 250 tasks, many categories, complex dependencies, long names and long spans', async ({ page }, testInfo) => {
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   const project = largeProject()

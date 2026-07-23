@@ -1,3 +1,5 @@
+import Modal from './Modal'
+
 const HELP_SECTIONS = [
   ['Keyboard shortcuts', 'Click a task bar first to select it', [['Delete / Backspace', 'Remove selected task'], ['Escape', 'Deselect task'], ['← →', 'Nudge task ±1 day'], ['Shift + ← →', 'Nudge task ±7 days'], ['↑ ↓', 'Reorder task up / down'], ['Double-click bar', 'Rename task inline']]],
   ['Chart', null, [['Click bar', 'Select task (opens editor on mobile)'], ['Click chart title', 'Edit the chart title'], ['Drag label column edge', 'Resize the task name column'], ['Zoom − / +', 'Shrink or expand the time axis'], ['Week / Month / Quarter / Year', 'Change time scale'], ['Classic / Inline', 'Labels in a column vs. inside bars']]],
@@ -7,9 +9,7 @@ const HELP_SECTIONS = [
 
 export default function HelpDialog({ onClose }) {
   return (
-    <div className="dialog-layer" role="presentation">
-      <div className="dialog-backdrop" onClick={onClose} />
-      <section className="app-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <Modal titleId="help-title" onClose={onClose} backdropZIndex={130} dialogZIndex={131} className="app-dialog help-dialog">
         <header className="dialog-header">
           <h3 id="help-title">Help &amp; shortcuts</h3>
           <button onClick={onClose} className="dialog-close" aria-label="Close help">×</button>
@@ -22,7 +22,6 @@ export default function HelpDialog({ onClose }) {
           </section>
         ))}
         <button onClick={onClose} className="gx-btn gx-btn-secondary dialog-done">Close</button>
-      </section>
-    </div>
+    </Modal>
   )
 }

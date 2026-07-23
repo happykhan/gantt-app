@@ -17,16 +17,13 @@ const EDGE_PX = 14
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onTaskSelect, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, labelWidth = LABEL_W, onLabelWidth = () => {}, onColorChange, onTaskChange, onTaskClick, onTaskSelect, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
   const touchRef = useRef(null)
   const [dragState, setDragState] = useState(null)
   const [editingCat, setEditingCat] = useState(null)
-  const [labelWidth, setLabelWidth] = useState(() => {
-    try { return parseInt(localStorage.getItem('gantt-labelWidth'), 10) || LABEL_W } catch { return LABEL_W }
-  })
   const [inlineEditId, setInlineEditId] = useState(null)
   const [inlineEditVal, setInlineEditVal] = useState('')
 
@@ -42,14 +39,14 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     function onMove(ev) {
       const x = ev.touches ? ev.touches[0].clientX : ev.clientX
       lastW = Math.max(60, Math.min(window.innerWidth * 0.6, startW + x - startX))
-      setLabelWidth(lastW)
+      onLabelWidth(lastW)
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      try { localStorage.setItem('gantt-labelWidth', lastW) } catch { /* Preferences are best-effort. */ }
+      onLabelWidth(lastW)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -312,7 +309,7 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
           }
 
           const w = Math.max(14, dateToX(e, rangeStartStr, pxPerDay) - x)
-          const textCol = isLightColour(fill) ? '#1a1a1a' : '#fff'
+          const textCol = isLightColour(fill) ? '#000' : '#fff'
           const progressW = w * ((task.progress ?? 0) / 100)
           const isSelected = selectedId === task.id
 

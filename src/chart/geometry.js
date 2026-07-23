@@ -147,5 +147,10 @@ export function buildDependencyPaths(tasks, rangeStart, pixelsPerDay, rowHeight,
 export function isLightColour(hex) {
   const value = hex.replace('#', '')
   const [red, green, blue] = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16))
-  return (0.299 * red + 0.587 * green + 0.114 * blue) / 255 > 0.55
+  const linear = channel => {
+    const normalised = channel / 255
+    return normalised <= 0.04045 ? normalised / 12.92 : ((normalised + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+  return luminance > 0.179
 }

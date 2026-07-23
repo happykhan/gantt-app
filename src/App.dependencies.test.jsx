@@ -76,13 +76,13 @@ describe('dependency editing', () => {
       ],
     })
 
-    const bar = screen.getByTestId('gantt-bar-research')
+    const bar = document.querySelector('[data-testid="gantt-task"][data-task-id="research"]')
     bar.getBoundingClientRect = () => ({ left: 0, width: 100 })
     fireEvent.mouseDown(bar, { button: 0, clientX: 50 })
     fireEvent.mouseUp(window, { clientX: 50 })
     const editor = screen.getByRole('heading', { name: 'Edit task' }).parentElement.parentElement
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Analysis' }))
-    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save task' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Change rejected. Dependency cycle')
     expect(screen.getByRole('heading', { name: 'Edit task' })).toBeInTheDocument()

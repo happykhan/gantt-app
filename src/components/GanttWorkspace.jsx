@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useStoredPreference } from '../hooks/useStoredPreference'
 import CustomGantt from './CustomGantt'
 import EmptyState from './EmptyState'
 import ScheduleWarnings from './ScheduleWarnings'
@@ -22,6 +21,12 @@ export default function GanttWorkspace({
   barFontSize,
   chartFont,
   categoryColors,
+  tableHeight,
+  onTableHeight,
+  labelWidth,
+  onLabelWidth,
+  columnWidths,
+  onColumnWidths,
   exportRef,
   scrollRef,
   onCreate,
@@ -40,7 +45,6 @@ export default function GanttWorkspace({
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
-  const [tableHeight, setTableHeight] = useStoredPreference('gantt-tableHeight', 240, value => parseInt(value, 10) || 240)
 
   function startTableResize(event) {
     const isTouch = event.type === 'touchstart'
@@ -48,7 +52,7 @@ export default function GanttWorkspace({
     const startingHeight = tableHeight
     function onMove(moveEvent) {
       const y = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY
-      setTableHeight(Math.max(80, Math.min(600, startingHeight - (y - startY))))
+      onTableHeight(Math.max(80, Math.min(600, startingHeight - (y - startY))))
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
@@ -110,6 +114,8 @@ export default function GanttWorkspace({
                 barFontSize={barFontSize}
                 chartFont={chartFont}
                 categoryColors={categoryColors}
+                labelWidth={labelWidth}
+                onLabelWidth={onLabelWidth}
                 onColorChange={onColour}
                 onTaskChange={onTaskChange}
                 onTaskClick={onTaskClick}
@@ -134,7 +140,7 @@ export default function GanttWorkspace({
             onKeyDown={event => {
               if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
               event.preventDefault()
-              setTableHeight(Math.max(80, Math.min(600, tableHeight + (event.key === 'ArrowUp' ? 20 : -20))))
+              onTableHeight(Math.max(80, Math.min(600, tableHeight + (event.key === 'ArrowUp' ? 20 : -20))))
             }}
             role="separator" aria-orientation="horizontal" aria-label="Resize task table"
             aria-valuemin={80} aria-valuemax={600} aria-valuenow={tableHeight} tabIndex={0}
@@ -149,6 +155,8 @@ export default function GanttWorkspace({
             onAdd={onCreate}
             onMove={onMove}
             tableHeight={tableHeight}
+            columnWidths={columnWidths}
+            onColumnWidths={onColumnWidths}
             compact={viewportWidth < 600}
             onEdit={onEdit}
           />

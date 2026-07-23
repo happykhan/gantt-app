@@ -6,13 +6,6 @@ const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f973
 const DEFAULT_COL_WIDTHS = { name: 160, start: 82, end: 82, dur: 52, category: 110, progress: 52, deps: 130 }
 const MIN_COL_WIDTHS    = { name: 60,  start: 60, end: 60, dur: 36, category: 60,  progress: 36, deps: 50  }
 
-function loadColWidths() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('gantt-colWidths') || '{}')
-    return { ...DEFAULT_COL_WIDTHS, ...saved }
-  } catch { return { ...DEFAULT_COL_WIDTHS } }
-}
-
 function DepsModal({ task, tasks, onSave, onClose }) {
   const [deps, setDeps] = useState(() =>
     new Set(task.dependencies ? task.dependencies.split(',').map(s => s.trim()).filter(Boolean) : [])
@@ -186,9 +179,9 @@ function ResizableHeader({ colKey, label, width, baseStyle, onResize, onKeyboard
   )
 }
 
-export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240, compact = false, onEdit }) {
+export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd, onMove, tableHeight = 240, compact = false, onEdit, columnWidths = DEFAULT_COL_WIDTHS, onColumnWidths = () => {} }) {
   const [openDepsId, setOpenDepsId] = useState(null)
-  const [colWidths, setColWidths] = useState(loadColWidths)
+  const colWidths = { ...DEFAULT_COL_WIDTHS, ...columnWidths }
 
   function startColResize(key, e) {
     const isTouch = e.type === 'touchstart'
@@ -198,18 +191,14 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
     function onMove(ev) {
       const x = ev.touches ? ev.touches[0].clientX : ev.clientX
       lastW = Math.max(MIN_COL_WIDTHS[key] ?? 40, startW + x - startX)
-      setColWidths(prev => ({ ...prev, [key]: lastW }))
+      onColumnWidths(prev => ({ ...prev, [key]: lastW }))
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       window.removeEventListener('touchmove', onMove)
       window.removeEventListener('touchend', onUp)
-      setColWidths(prev => {
-        const next = { ...prev, [key]: lastW }
-        try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch { /* Preferences are best-effort. */ }
-        return next
-      })
+      onColumnWidths(prev => ({ ...prev, [key]: lastW }))
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -227,11 +216,7 @@ export default function TaskTable({ tasks, categories, onUpdate, onDelete, onAdd
   }
 
   function resizeColumnWithKeyboard(key, delta) {
-    setColWidths(prev => {
-      const next = { ...prev, [key]: Math.max(MIN_COL_WIDTHS[key] ?? 40, prev[key] + delta) }
-      try { localStorage.setItem('gantt-colWidths', JSON.stringify(next)) } catch { /* Preferences are best-effort. */ }
-      return next
-    })
+    onColumnWidths(prev => ({ ...prev, [key]: Math.max(MIN_COL_WIDTHS[key] ?? 40, prev[key] + delta) }))
   }
 
   if (compact) {
