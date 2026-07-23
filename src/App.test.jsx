@@ -22,6 +22,7 @@ describe('App project workflow', () => {
   beforeEach(() => {
     localStorage.clear()
     localStorage.setItem('gantt-app-v1', JSON.stringify(savedProject))
+    window.history.replaceState({}, '', '/')
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
   })
 
@@ -113,5 +114,33 @@ describe('App project workflow', () => {
       expect(saved.title).toBe('')
       expect(saved.categoryColors).toEqual({})
     })
+  })
+})
+
+describe('App routes', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('renders a real About page at /about without mounting the project workspace', () => {
+    window.history.replaceState({}, '', '/about')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Plan the work. Present it clearly.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Your plans stay with you' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Project workflow')).not.toBeInTheDocument()
+    expect(document.title).toBe('About | Gantt Builder')
+  })
+
+  it('navigates from About back to the builder', async () => {
+    window.history.replaceState({}, '', '/about')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open the builder' }))
+
+    expect(await screen.findByLabelText('Project workflow')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(document.title).toBe('Gantt Chart Builder')
   })
 })

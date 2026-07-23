@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { NavBar } from '@genomicx/ui'
+import AboutPage from './components/AboutPage'
 import ConfirmClearDialog from './components/ConfirmClearDialog'
 import GanttWorkspace from './components/GanttWorkspace'
 import HelpDialog from './components/HelpDialog'
@@ -346,19 +347,54 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
   )
 }
 
-function App() {
+function AppFooter({ autosaveStatus }) {
+  return (
+    <footer className={`app-footer${autosaveStatus ? '' : ' about-footer'}`}>
+      {autosaveStatus && (
+        <span className={`autosave-indicator is-${autosaveStatus}`}>
+          <span className="feedback-dot" />
+          {autosaveStatus === 'saving' ? 'Saving…' : autosaveStatus === 'unavailable' ? 'Browser save unavailable' : 'All changes saved in this browser'}
+        </span>
+      )}
+      <span className="app-version">Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'}</span>
+      <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </footer>
+  )
+}
+
+function BuilderRoute() {
   const projectState = useProjectState()
   const { autosaveStatus } = projectState
+  useEffect(() => {
+    document.title = 'Gantt Chart Builder'
+  }, [])
+  return (
+    <>
+      <GanttPage {...projectState} />
+      <AppFooter autosaveStatus={autosaveStatus} />
+    </>
+  )
+}
+
+function AboutRoute() {
+  return (
+    <>
+      <AboutPage />
+      <AppFooter />
+    </>
+  )
+}
+
+function App() {
   return (
     <BrowserRouter>
       <div className="app-root">
         <NavBar appName="Gantt Builder" appSubtitle="Grant timeline maker" githubUrl="https://github.com/happykhan/gantt-app" icon={<AppIcon />} />
-        <GanttPage {...projectState} />
-        <footer className="app-footer">
-          <span className={`autosave-indicator is-${autosaveStatus}`}><span className="feedback-dot" />{autosaveStatus === 'saving' ? 'Saving…' : autosaveStatus === 'unavailable' ? 'Browser save unavailable' : 'All changes saved in this browser'}</span>
-          <span className="app-version">Gantt Builder v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '?'}</span>
-          <a href="https://github.com/happykhan/gantt-app" target="_blank" rel="noopener noreferrer">GitHub</a>
-        </footer>
+        <Routes>
+          <Route path="/" element={<BuilderRoute />} />
+          <Route path="/about" element={<AboutRoute />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </BrowserRouter>
   )
