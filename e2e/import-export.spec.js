@@ -9,6 +9,11 @@ async function openFileImport(page) {
   return page.locator('input[type="file"][accept*=".xlsx"]')
 }
 
+async function confirmFileImport(page, taskCount) {
+  const label = taskCount === 1 ? 'Import 1 task' : `Import ${taskCount} tasks`
+  await page.getByRole('button', { name: label }).click()
+}
+
 test('imports quoted CSV, Excel and JSON files', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-light', 'File-format coverage runs once; the core workflow covers the full viewport and colour matrix.')
   await openEmpty(page)
@@ -19,6 +24,7 @@ test('imports quoted CSV, Excel and JSON files', async ({ page }, testInfo) => {
     mimeType: 'text/csv',
     buffer: Buffer.from('Task Name,Start,End,Category,Progress\r\n"Study, design",2026-01-02,2026-02-28,Planning,25\r\n'),
   })
+  await confirmFileImport(page, 1)
   await expect(page.getByTestId('gantt-task').filter({ hasText: 'Study, design' })).toHaveCount(1)
 
   input = await openFileImport(page)
@@ -31,6 +37,7 @@ test('imports quoted CSV, Excel and JSON files', async ({ page }, testInfo) => {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     buffer: Buffer.from(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })),
   })
+  await confirmFileImport(page, 1)
   await expect(page.getByTestId('gantt-task').filter({ hasText: 'Excel recruitment' })).toHaveCount(1)
 
   input = await openFileImport(page)
@@ -39,6 +46,7 @@ test('imports quoted CSV, Excel and JSON files', async ({ page }, testInfo) => {
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(twoTaskProject)),
   })
+  await confirmFileImport(page, 2)
   await expect(page.getByTestId('gantt-task')).toHaveCount(2)
   await expect(page.getByTestId('gantt-task').filter({ hasText: 'Protocol design' })).toHaveCount(1)
 })

@@ -10,6 +10,7 @@ A browser-based Gantt chart tool built for academic grant applications and proje
 
 - **Flexible input**: upload Excel (`.xlsx`/`.xls`), CSV or JSON, paste from Google Sheets, or start from the built-in example
 - **Drag to edit**: drag bars to shift dates and drag either edge to resize duration
+- **Consistent undo**: restore the complete project after chart, table, keyboard, import, load, colour and clear actions
 - **Focused editing**: edit a selected task in the task editor or use the desktop task table for quick changes
 - **Category colours**: automatic colour coding by category, with category and task-level overrides
 - **Dependencies**: select predecessor tasks and see dependency arrows on the chart
@@ -71,34 +72,54 @@ Production deployment requires explicit approval. Follow the release checklist r
 
 ## Input format
 
-### Excel / CSV
+### Excel / CSV / TSV
 
 The parser looks for columns named (case-insensitive, flexible aliases):
 
 | Field | Accepted names |
 |---|---|
+| Task ID | ID, Task ID |
 | Task name | Task, Task Name, Name, Activity, Item |
 | Start date | Start, Start Date, Begin, From |
 | End date | End, End Date, Finish, Due, Until |
 | Category | Category, WP, Phase, Group, Section |
 | Progress | Progress, %, % Complete, Done |
 | Dependencies | Dependencies, Deps, Depends On, After |
+| Category colour | Colour, Color, Category Colour |
+
+Task name, start and end are required. CSV and TSV follow normal quoted-field rules, including commas, escaped quotes, embedded newlines and CRLF line endings. Excel numeric date serials are supported.
+
+Dates must be either ISO `YYYY-MM-DD` or British `DD/MM/YYYY`. Slash dates always use day/month order, so `03/04/2026` means 3 April 2026. Invalid calendar dates and other ambiguous formats are rejected instead of being guessed.
+
+Task IDs must be unique and may contain letters, numbers, dots, underscores, colons and hyphens. Progress must be between 0 and 100. Colours must be 3- or 6-digit hex values. Dependencies may refer to another task's ID, its 1-based data-row position, or a unique task name. Missing, repeated and self-referencing dependencies are errors.
 
 ### Paste
 
-Copy from Excel or Google Sheets (tab-separated) and paste into the Paste tab. CSV also works.
+Copy from Excel or Google Sheets (tab-separated) and paste into the Paste tab. Standards-compliant CSV also works. The preview shows every parsed task and any row-level errors. The current project is not replaced until the preview has no errors and you confirm the import.
 
 ### JSON project
 
-Use **Save** to export your current project, and **Load** (or drop the file on the upload screen) to resume.
+Use **Save** to export your current project, and **Load** (or import the file from the upload tab) to resume. Project files use a versioned schema:
+
+```json
+{
+  "schemaVersion": 1,
+  "title": "Grant plan",
+  "tasks": [],
+  "categoryColors": {}
+}
+```
+
+Version 1 preserves the complete project, including an empty task list, empty title and empty colour map. Older unversioned files with `chartTitle`, `tasks` and `categoryColors` are migrated when loaded. Invalid tasks, duplicate IDs, missing dependencies or invalid colours reject the entire file, so a failed load never partially changes the current project.
 
 ---
 
 ## Stack
 
 - [React](https://react.dev) + [Vite](https://vite.dev)
-- [frappe-gantt](https://frappe.io/gantt) — Gantt chart rendering
+- Custom React timeline renderer with tested date, dependency and responsive geometry modules
 - [SheetJS (xlsx)](https://sheetjs.com) — Excel parsing
+- [Papa Parse](https://www.papaparse.com/) — standards-compliant CSV and TSV parsing
 - [html-to-image](https://github.com/bubkoo/html-to-image) — PNG export
 - [Tailwind CSS v4](https://tailwindcss.com) + [@genomicx/ui](https://github.com/genomicx/genomicx-ui) design tokens
 

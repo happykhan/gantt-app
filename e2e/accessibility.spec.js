@@ -105,3 +105,17 @@ test('core chart, menu and dependency workflow is keyboard operable', async ({ p
   await page.keyboard.press('Escape')
   await expect(dependencyButton).toBeFocused()
 })
+
+test('About route is useful, navigable and passes the accessibility smoke', async ({ page }) => {
+  await page.goto('/about')
+
+  await expect(page).toHaveTitle('About | Gantt Builder')
+  await expect(page.getByRole('heading', { name: 'Plan the work. Present it clearly.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your plans stay with you' })).toBeVisible()
+  await expect(page.getByLabel('Project workflow')).toHaveCount(0)
+  await expectNoBlockingViolations(page, 'About page')
+
+  await page.getByRole('link', { name: 'Open the builder' }).click()
+  await expect(page).toHaveURL('/')
+  await expect(page.getByLabel('Project workflow')).toBeVisible()
+})

@@ -22,6 +22,7 @@ describe('App project workflow', () => {
   beforeEach(() => {
     localStorage.clear()
     localStorage.setItem('gantt-app-v1', JSON.stringify(savedProject))
+    window.history.replaceState({}, '', '/')
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
   })
 
@@ -36,7 +37,8 @@ describe('App project workflow', () => {
     await waitFor(() => {
       const saved = JSON.parse(localStorage.getItem('gantt-app-v1'))
       expect(saved.tasks[0].name).toBe('Updated study design')
-      expect(saved.chartTitle).toBe('Grant plan')
+      expect(saved.schemaVersion).toBe(1)
+      expect(saved.title).toBe('Grant plan')
       expect(saved.categoryColors).toEqual({ WP1: '#0d9488' })
     })
   })
@@ -71,5 +73,74 @@ describe('App project workflow', () => {
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit tasks' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dependencies: select a task first' })).toBeInTheDocument()
+  })
+
+  it('does not partially replace the current project when a loaded file is invalid', async () => {
+    const { container } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    const input = container.querySelector('input[type="file"][accept=".json"]')
+    const invalidProject = new File([JSON.stringify({
+      schemaVersion: 1,
+      title: 'Replacement title',
+      categoryColors: {},
+      tasks: [{ ...savedProject.tasks[0], start: '2026-99-99' }],
+    })], 'invalid.json', { type: 'application/json' })
+
+    fireEvent.change(input, { target: { files: [invalidProject] } })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('That project file could not be loaded')
+    expect(screen.getByDisplayValue('Study design')).toBeInTheDocument()
+    expect(screen.getByText('Grant plan')).toBeInTheDocument()
+  })
+
+  it('loads empty tasks, title and colours as a complete project replacement', async () => {
+    const { container } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    const input = container.querySelector('input[type="file"][accept=".json"]')
+    const emptyProject = new File([JSON.stringify({
+      schemaVersion: 1,
+      title: '',
+      categoryColors: {},
+      tasks: [],
+    })], 'empty.json', { type: 'application/json' })
+
+    fireEvent.change(input, { target: { files: [emptyProject] } })
+
+    expect(await screen.findByText('Build your Gantt chart')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add project title' })).toBeInTheDocument()
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem('gantt-app-v1'))
+      expect(saved.tasks).toEqual([])
+      expect(saved.title).toBe('')
+      expect(saved.categoryColors).toEqual({})
+    })
+  })
+})
+
+describe('App routes', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('renders a real About page at /about without mounting the project workspace', () => {
+    window.history.replaceState({}, '', '/about')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'Plan the work. Present it clearly.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Your plans stay with you' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Project workflow')).not.toBeInTheDocument()
+    expect(document.title).toBe('About | Gantt Builder')
+  })
+
+  it('navigates from About back to the builder', async () => {
+    window.history.replaceState({}, '', '/about')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open the builder' }))
+
+    expect(await screen.findByLabelText('Project workflow')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/')
+    expect(document.title).toBe('Gantt Chart Builder')
   })
 })

@@ -43,13 +43,16 @@ export function largeProject() {
       start,
       end: end > start ? end : isoDate(startYear + 1, (index + 3) % 12, 20),
       category: categories[index % categories.length],
-      dependencies: index === 0 ? 'large-2' : index === 1 ? 'large-1' : index % 5 === 0 ? `large-${index}` : '',
+      dependencies: index === 0 ? '' : index === 1 ? 'large-1' : index % 5 === 0 ? `large-${index}` : '',
       progress: index % 101,
     }
   })
   return {
     chartTitle: 'Large cyclic programme, 2000 to 2045',
-    categoryColors: Object.fromEntries(categories.map((category, index) => [category, `hsl(${index * 12} 65% 45%)`])),
+    categoryColors: Object.fromEntries(categories.map((category, index) => [
+      category,
+      `#${((index * 0x4f1bbd + 0x205493) & 0xffffff).toString(16).padStart(6, '0')}`,
+    ])),
     tasks,
   }
 }

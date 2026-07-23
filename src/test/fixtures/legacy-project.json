@@ -1,0 +1,14 @@
+{
+  "chartTitle": "Legacy grant plan",
+  "tasks": [
+    {
+      "id": "legacy-1",
+      "name": "Legacy task",
+      "start": "2026-01-01",
+      "end": "2026-02-01"
+    }
+  ],
+  "categoryColors": {
+    "WP1": "#0d9488"
+  }
+}

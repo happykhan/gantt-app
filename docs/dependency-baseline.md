@@ -18,8 +18,11 @@ The production dependency audit is enforced in CI at moderate severity or higher
 
 Every pull request must pass ESLint, the Vitest suite, a production audit, and the production build. The build also enforces compressed bundle budgets:
 
+- Initial JavaScript: 500 KiB minified, including module-preloaded vendor chunks
 - Largest JavaScript asset: 230 KiB gzip
 - All JavaScript assets: 480 KiB gzip
 - All CSS assets: 10 KiB gzip
 
 These budgets cover both initial and lazy-loaded export code. Any deliberate increase must update the budget and explain the trade-off in the pull request.
+
+Spreadsheet parsing and PDF generation are loaded only when those features are used. React and the shared UI library are split into stable vendor chunks. As of 22 July 2026, the initial JavaScript is 318 KiB minified, down from the previous 695 KiB main chunk.
