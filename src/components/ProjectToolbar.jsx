@@ -5,6 +5,7 @@ const VIEW_MODES = ['Week', 'Month', 'Quarter', 'Year']
 export default function ProjectToolbar({
   hasTasks,
   hasSelection,
+  selectedTaskName,
   showTable,
   canUndo,
   viewMode,
@@ -39,7 +40,8 @@ export default function ProjectToolbar({
         <button onClick={onToggleTable} className={`gx-btn gx-btn-secondary workflow-action${showTable ? ' is-active' : ''}`} aria-pressed={showTable}>
           Edit tasks
         </button>
-        <button onClick={onEditDependencies} className="gx-btn gx-btn-secondary workflow-action dependencies-action" disabled={!hasTasks} aria-label="Dependencies">
+        <button onClick={onEditDependencies} className="gx-btn gx-btn-secondary workflow-action dependencies-action" disabled={!hasTasks}
+          aria-label={selectedTaskName ? `Edit dependencies for ${selectedTaskName}` : 'Dependencies: select a task first'}>
           <span className="desktop-action-label">Dependencies</span><span className="mobile-action-label">Deps</span>
         </button>
       </div>
@@ -68,7 +70,13 @@ export default function ProjectToolbar({
 
         <WorkflowMenu label="Project">
           <MenuButton onClick={onSaveProject}>Save project file</MenuButton>
-          <label className="workflow-menu-item file-menu-item" role="menuitem">
+          <label className="workflow-menu-item file-menu-item" role="menuitem" tabIndex={0}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                event.currentTarget.querySelector('input')?.click()
+              }
+            }}>
             Open project file
             <input type="file" accept=".json" onChange={event => { onOpenProject(event.target.files[0]); event.target.value = '' }} />
           </label>

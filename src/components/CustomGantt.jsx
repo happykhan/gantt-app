@@ -17,7 +17,7 @@ const EDGE_PX = 14
 const DEFAULT_COLORS = ['#0d9488','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#6366f1','#ec4899','#14b8a6','#84cc16']
 
 // ── component ─────────────────────────────────────────────────────────────────
-export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
+export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'inline', rowHeight = 52, barFontSize = 11, chartFont = 'inherit', categoryColors = {}, onColorChange, onTaskChange, onTaskClick, onTaskSelect, onRenameCategory, exportRef, scrollExportRef, isMobile = false, selectedId = null, availableWidth = 0 }) {
   const scrollRef = useRef(null)
   const labelColRef = useRef(null)
   const dragRef = useRef(null)
@@ -177,6 +177,28 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
     [ROW_H, dragState, pxPerDay, rangeStartStr, tasks],
   )
 
+  function taskAccessibleName(task) {
+    const dependencyCount = task.dependencies?.split(',').map(value => value.trim()).filter(Boolean).length || 0
+    return `${task.name}, ${task.start} to ${task.end}, ${task.progress ?? 0}% complete${dependencyCount ? `, ${dependencyCount} ${dependencyCount === 1 ? 'dependency' : 'dependencies'}` : ', no dependencies'}`
+  }
+
+  function beginInlineEdit(task) {
+    setInlineEditId(task.id)
+    setInlineEditVal(task.name)
+  }
+
+  function onTaskKeyDown(event, task) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.stopPropagation()
+      onTaskClick?.(task.id)
+    } else if (event.key === 'F2') {
+      event.preventDefault()
+      event.stopPropagation()
+      beginInlineEdit(task)
+    }
+  }
+
   if (!tasks.length) return <div style={{ padding: 24, color: 'var(--gx-text-muted)' }}>No tasks yet — use the + button to add one.</div>
 
   const todayStr = formatDate(new Date())
@@ -203,11 +225,8 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditingCat(null) }}
               />
             ) : (
-              <span
-                onClick={() => setEditingCat(cat)}
-                title="Tap to rename"
-                style={{ fontSize: 12, color: 'var(--gx-text-muted)', cursor: 'text', borderBottom: '1px dashed var(--gx-border)' }}
-              >{cat}</span>
+              <button type="button" onClick={() => setEditingCat(cat)}
+                title={`Rename category ${cat}`} className="category-name-button">{cat}</button>
             )}
           </div>
         )
@@ -272,8 +291,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
                 data-end={task.end}
                 onTouchStart={ev => onTouchStart(ev, task)}
                 onMouseDown={ev => onMouseDown(ev, task)}
+                onFocus={() => onTaskSelect?.(task.id)}
+                onKeyDown={event => onTaskKeyDown(event, task)}
                 title={task.name}
-                aria-label={`Task: ${task.name}`}
+                aria-label={taskAccessibleName(task)}
+                aria-pressed={isSelected}
+                role="button"
+                tabIndex={0}
                 style={{
                   position: 'absolute',
                   left: x - sz / 2, top: rowIdx * ROW_H + BAR_Y,
@@ -301,13 +325,19 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               data-end={task.end}
               onTouchStart={ev => onTouchStart(ev, task)}
               onMouseDown={ev => isInlineEditing ? undefined : onMouseDown(ev, task)}
+              onFocus={() => onTaskSelect?.(task.id)}
+              onKeyDown={event => {
+                if (!isInlineEditing) onTaskKeyDown(event, task)
+              }}
               onDoubleClick={ev => {
                 ev.stopPropagation()
-                setInlineEditId(task.id)
-                setInlineEditVal(task.name)
+                beginInlineEdit(task)
               }}
               title={`${task.name}. ${task.start} to ${task.end}`}
-              aria-label={`Task: ${task.name}`}
+              aria-label={isInlineEditing ? undefined : taskAccessibleName(task)}
+              aria-pressed={isInlineEditing ? undefined : isSelected}
+              role={isInlineEditing ? undefined : 'button'}
+              tabIndex={isInlineEditing ? -1 : 0}
               style={{
                 position: 'absolute', left: x, top: rowIdx * ROW_H + BAR_Y, width: w, height: BAR_H,
                 borderRadius: 4, background: fill, cursor: isInlineEditing ? 'text' : isDragging ? 'grabbing' : 'grab',
@@ -376,7 +406,13 @@ export default function CustomGantt({ tasks, viewMode = 'Month', labelMode = 'in
               <div
                 key={task.id}
                 onClick={() => onTaskClick?.(task.id)}
-                onDoubleClick={() => { setInlineEditId(task.id); setInlineEditVal(task.name) }}
+                onFocus={() => onTaskSelect?.(task.id)}
+                onKeyDown={event => onTaskKeyDown(event, task)}
+                onDoubleClick={() => beginInlineEdit(task)}
+                role={inlineEditId === task.id ? undefined : 'button'}
+                tabIndex={inlineEditId === task.id ? -1 : 0}
+                aria-label={inlineEditId === task.id ? undefined : taskAccessibleName(task)}
+                aria-pressed={inlineEditId === task.id ? undefined : selectedId === task.id}
                 style={{
                   height: ROW_H, flexShrink: 0,
                   display: 'flex', alignItems: 'center',

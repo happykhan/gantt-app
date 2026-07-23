@@ -29,6 +29,7 @@ export default function GanttWorkspace({
   onColour,
   onTaskChange,
   onTaskClick,
+  onTaskSelect,
   onRenameCategory,
   onDelete,
   onMove,
@@ -67,7 +68,9 @@ export default function GanttWorkspace({
               if (event.key === 'Enter' || event.key === 'Escape') setEditingTitle(false)
             }} aria-label="Project title" placeholder="Add project title" className="chart-title-input" />
           ) : (
-            <button onClick={() => setEditingTitle(true)} title="Select to set the project title" className={`chart-title-button${chartTitle ? '' : ' is-placeholder'}`}>
+            <button onClick={() => setEditingTitle(true)} title="Edit project title"
+              aria-label={chartTitle ? `Edit project title: ${chartTitle}` : 'Add project title'}
+              className={`chart-title-button${chartTitle ? '' : ' is-placeholder'}`}>
               {chartTitle || 'Add project title'}
             </button>
           )}
@@ -94,6 +97,7 @@ export default function GanttWorkspace({
                 onColorChange={onColour}
                 onTaskChange={onTaskChange}
                 onTaskClick={onTaskClick}
+                onTaskSelect={onTaskSelect}
                 onRenameCategory={onRenameCategory}
                 exportRef={exportRef}
                 scrollExportRef={scrollRef}
@@ -105,12 +109,20 @@ export default function GanttWorkspace({
           </div>
         )}
 
-        {tasks.length > 0 && <button onClick={onCreate} className="add-task-fab" title="Add task"><span>+</span><span className="fab-label">Task</span></button>}
+        {tasks.length > 0 && <button onClick={onCreate} className="add-task-fab" title="Add task" aria-label="Add task"><span aria-hidden="true">+</span><span className="fab-label">Task</span></button>}
       </main>
 
       {showTable && tasks.length > 0 && (
         <section className="task-table-panel">
-          <div onMouseDown={startTableResize} onTouchStart={startTableResize} className={`table-resize-handle${isMobile ? ' is-mobile' : ''}`}>
+          <div onMouseDown={startTableResize} onTouchStart={startTableResize}
+            onKeyDown={event => {
+              if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+              event.preventDefault()
+              setTableHeight(Math.max(80, Math.min(600, tableHeight + (event.key === 'ArrowUp' ? 20 : -20))))
+            }}
+            role="separator" aria-orientation="horizontal" aria-label="Resize task table"
+            aria-valuemin={80} aria-valuemax={600} aria-valuenow={tableHeight} tabIndex={0}
+            className={`table-resize-handle${isMobile ? ' is-mobile' : ''}`}>
             <span />
           </div>
           <TaskTable

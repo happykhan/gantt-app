@@ -70,6 +70,6 @@ describe('App project workflow', () => {
     expect(screen.getByRole('button', { name: 'Task' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit tasks' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Dependencies' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dependencies: select a task first' })).toBeInTheDocument()
   })
 })

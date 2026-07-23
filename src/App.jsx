@@ -88,14 +88,17 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
+      if (event.target.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return
       if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
         undo()
         event.preventDefault()
         return
       }
       if (!selectedId) return
-      if (event.key === 'Delete' || event.key === 'Backspace') handleDelete(selectedId)
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        handleDelete(selectedId)
+        event.preventDefault()
+      }
       else if (event.key === 'Escape') setSelectedId(null)
       else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         const direction = event.key === 'ArrowLeft' ? -1 : 1
@@ -185,6 +188,7 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
       <ProjectToolbar
         hasTasks={tasks.length > 0}
         hasSelection={Boolean(selectedTask)}
+        selectedTaskName={selectedTask?.name}
         showTable={showTable}
         canUndo={canUndo}
         viewMode={viewMode}
@@ -235,6 +239,7 @@ function GanttPage({ project, setProject, setTasks, setChartTitle, setCategoryCo
         onColour={(category, colour) => setCategoryColors(current => ({ ...current, [category]: colour }))}
         onTaskChange={handleTaskChange}
         onTaskClick={editTask}
+        onTaskSelect={setSelectedId}
         onRenameCategory={handleRenameCategory}
         onDelete={handleDelete}
         onMove={handleMove}
